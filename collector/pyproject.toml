@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bm-teletext-collector"
+version = "0.1.0"
+description = "BrandMeister Last Heard collector for Finnish DMR repeater activity"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "psycopg[binary]>=3.2,<4",
+  "python-socketio[client]>=5.11,<6",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+]
+
+[project.scripts]
+bm-teletext-collector = "bm_teletext_collector.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

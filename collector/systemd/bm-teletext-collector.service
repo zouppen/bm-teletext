@@ -1,0 +1,17 @@
+[Unit]
+Description=BrandMeister Finnish Last Heard Collector
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=bm-teletext
+WorkingDirectory=/opt/bm-teletext/collector
+Environment=DATABASE_URL=postgresql://bm_teletext:change-me@localhost:5432/bm_teletext
+Environment=BM_LOG_LEVEL=INFO
+ExecStart=/opt/bm-teletext/collector/.venv/bin/bm-teletext-collector
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
