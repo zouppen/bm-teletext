@@ -7,7 +7,7 @@ import logging
 import time
 from typing import Any, Protocol
 
-from bm_teletext_collector.filters import is_finnish_repeater_event
+from bm_teletext_collector.filters import SourceIdFilter
 
 
 LOGGER = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ class LastHeardCollector:
     store: Store
     url: str
     socketio_path: str
+    source_id_filter: SourceIdFilter
     reconnect_delay_seconds: float = 5.0
     insert_retry_delay_seconds: float = 5.0
 
@@ -71,7 +72,7 @@ class LastHeardCollector:
         if payload is None:
             return False
 
-        if not is_finnish_repeater_event(payload):
+        if not self.source_id_filter.matches_payload(payload):
             return False
 
         self.append_with_retry(payload)

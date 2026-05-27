@@ -1,5 +1,6 @@
 from typing import Any
 
+from bm_teletext_collector.filters import SourceIdFilter
 from bm_teletext_collector.stream import LastHeardCollector, decode_mqtt_payload
 
 
@@ -29,6 +30,7 @@ def test_appends_all_matching_events_without_deduplication() -> None:
         store=store,
         url="https://example.invalid",
         socketio_path="/lh/socket.io",
+        source_id_filter=SourceIdFilter(),
     )
     message = {"payload": '{"SourceID": 244123, "SessionID": "abc"}'}
 
@@ -47,6 +49,7 @@ def test_skips_non_matching_events() -> None:
         store=store,
         url="https://example.invalid",
         socketio_path="/lh/socket.io",
+        source_id_filter=SourceIdFilter(),
     )
 
     assert not collector.handle_mqtt({"payload": '{"SourceID": 2441234}'})

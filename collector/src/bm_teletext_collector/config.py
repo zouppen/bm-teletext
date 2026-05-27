@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 
+from bm_teletext_collector.filters import DEFAULT_SOURCE_ID_PATTERN
+
 
 DEFAULT_LASTHEARD_URL = "https://api.brandmeister.network"
 DEFAULT_SOCKETIO_PATH = "/lh/socket.io"
@@ -14,6 +16,7 @@ class Config:
     database_url: str
     lastheard_url: str = DEFAULT_LASTHEARD_URL
     socketio_path: str = DEFAULT_SOCKETIO_PATH
+    source_id_pattern: str = DEFAULT_SOURCE_ID_PATTERN
     log_level: str = DEFAULT_LOG_LEVEL
 
 
@@ -28,6 +31,10 @@ def load_config() -> Config:
         socketio_path=os.environ.get(
             "BM_LASTHEARD_SOCKETIO_PATH",
             DEFAULT_SOCKETIO_PATH,
+        ),
+        source_id_pattern=os.environ.get(
+            "BM_SOURCE_ID_PATTERN",
+            DEFAULT_SOURCE_ID_PATTERN,
         ),
         log_level=os.environ.get("BM_LOG_LEVEL", DEFAULT_LOG_LEVEL),
     )

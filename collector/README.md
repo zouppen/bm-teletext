@@ -3,15 +3,15 @@
 This collector connects to the BrandMeister Last Heard Socket.IO stream and
 stores matching raw events in PostgreSQL.
 
-The filter is intentionally narrow:
+The default filter is intentionally narrow:
 
 - `SourceID` must be present.
-- `SourceID` must parse as a six-digit integer.
-- `SourceID` must be between `244000` and `244999`, inclusive.
+- `SourceID` is converted to a canonical base-10 string.
+- The canonical string must match `^244...$`.
 
-Seven-digit IDs beginning with `244` are rejected because Finnish amateur
-station IDs are seven digits or longer, while six-digit `244xxx` IDs identify
-repeaters or hotspots.
+That default accepts six-digit `244xxx` repeater or hotspot IDs and rejects
+seven-digit Finnish amateur station IDs. Override `BM_SOURCE_ID_PATTERN` to use
+a different regular expression.
 
 ## Setup
 
@@ -40,6 +40,7 @@ Environment variables:
 - `DATABASE_URL`: required PostgreSQL connection string.
 - `BM_LASTHEARD_URL`: optional, defaults to `https://api.brandmeister.network`.
 - `BM_LASTHEARD_SOCKETIO_PATH`: optional, defaults to `/lh/socket.io`.
+- `BM_SOURCE_ID_PATTERN`: optional, defaults to `^244...$`.
 - `BM_LOG_LEVEL`: optional, defaults to `INFO`.
 
 ## systemd

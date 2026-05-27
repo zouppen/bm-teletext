@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import logging
+import re
 import sys
 
 from bm_teletext_collector.config import load_config
 from bm_teletext_collector.db import EventStore
+from bm_teletext_collector.filters import SourceIdFilter
 from bm_teletext_collector.stream import LastHeardCollector
 
 
@@ -18,7 +20,8 @@ def configure_logging(level: str) -> None:
 def main() -> int:
     try:
         config = load_config()
-    except RuntimeError as exc:
+        source_id_filter = SourceIdFilter(config.source_id_pattern)
+    except (RuntimeError, re.error) as exc:
         print(str(exc), file=sys.stderr)
         return 2
 
@@ -31,6 +34,7 @@ def main() -> int:
         store=store,
         url=config.lastheard_url,
         socketio_path=config.socketio_path,
+        source_id_filter=source_id_filter,
     )
     collector.run_forever()
     return 0
