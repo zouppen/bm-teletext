@@ -7,7 +7,7 @@ import logging
 import time
 from typing import Any, Protocol
 
-from bm_teletext_collector.filters import ContextIdFilter
+from bm_collector.filters import ContextIdFilter
 
 
 LOGGER = logging.getLogger(__name__)

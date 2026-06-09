@@ -3,7 +3,7 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "bm-teletext-collector"
+name = "bm-collector"
 version = "0.1.0"
 description = "BrandMeister Last Heard collector for Finnish DMR repeater activity"
 readme = "README.md"
@@ -19,7 +19,7 @@ dev = [
 ]
 
 [project.scripts]
-bm-teletext-collector = "bm_teletext_collector.main:main"
+bm-collector = "bm_collector.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

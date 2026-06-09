@@ -19,7 +19,7 @@ different regular expression.
 Create a virtualenv and install the collector:
 
 ```sh
-cd /work/collector
+cd /work/bm-collector
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
@@ -29,7 +29,7 @@ Create the database and run the service:
 
 ```sh
 export DATABASE_URL='postgresql://user:password@localhost:5432/bm_teletext'
-bm-teletext-collector
+bm-collector
 ```
 
 The service creates the required table and indexes on startup.
@@ -46,13 +46,13 @@ Environment variables:
 
 ## systemd
 
-Copy `systemd/bm-teletext-collector.service` to `/etc/systemd/system/` and
+Copy `systemd/bm-collector.service` to `/etc/systemd/system/` and
 adjust the paths, user, and `DATABASE_URL` for the target host.
 
 ## Tests
 
 ```sh
-cd /work/collector
+cd /work/bm-collector
 pytest
 ```
 

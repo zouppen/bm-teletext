@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import os
 
-from bm_teletext_collector.filters import DEFAULT_CONTEXT_ID_PATTERN
+from bm_collector.filters import DEFAULT_CONTEXT_ID_PATTERN
 
 
 DEFAULT_LASTHEARD_URL = "https://api.brandmeister.network"

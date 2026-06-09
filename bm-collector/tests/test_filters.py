@@ -1,6 +1,6 @@
 import pytest
 
-from bm_teletext_collector.filters import (
+from bm_collector.filters import (
     ContextIdFilter,
     context_id_to_string,
     is_finnish_repeater_event,

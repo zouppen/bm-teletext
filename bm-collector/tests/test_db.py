@@ -3,7 +3,7 @@ import os
 import pytest
 import psycopg
 
-from bm_teletext_collector.db import EventStore
+from bm_collector.db import EventStore
 
 
 @pytest.mark.skipif(

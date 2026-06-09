@@ -1,7 +1,7 @@
 from typing import Any
 
-from bm_teletext_collector.filters import ContextIdFilter
-from bm_teletext_collector.stream import LastHeardCollector, decode_mqtt_payload
+from bm_collector.filters import ContextIdFilter
+from bm_collector.stream import LastHeardCollector, decode_mqtt_payload
 
 
 class FakeStore:

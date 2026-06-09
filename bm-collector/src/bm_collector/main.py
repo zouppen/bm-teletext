@@ -4,10 +4,10 @@ import logging
 import re
 import sys
 
-from bm_teletext_collector.config import load_config
-from bm_teletext_collector.db import EventStore
-from bm_teletext_collector.filters import ContextIdFilter
-from bm_teletext_collector.stream import LastHeardCollector
+from bm_collector.config import load_config
+from bm_collector.db import EventStore
+from bm_collector.filters import ContextIdFilter
+from bm_collector.stream import LastHeardCollector
 
 
 def configure_logging(level: str) -> None:
