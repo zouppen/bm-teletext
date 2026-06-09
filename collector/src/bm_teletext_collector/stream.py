@@ -36,6 +36,8 @@ class LastHeardCollector:
             @client.event
             def connect() -> None:
                 LOGGER.info("connected to BrandMeister Last Heard")
+                client.emit("join", "everything")
+                LOGGER.info("subscribed to BrandMeister Last Heard feed")
 
             @client.event
             def disconnect() -> None:

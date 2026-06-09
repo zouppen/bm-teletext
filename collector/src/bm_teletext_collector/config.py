@@ -7,7 +7,7 @@ from bm_teletext_collector.filters import DEFAULT_SOURCE_ID_PATTERN
 
 
 DEFAULT_LASTHEARD_URL = "https://api.brandmeister.network"
-DEFAULT_SOCKETIO_PATH = "/lh/socket.io"
+DEFAULT_SOCKETIO_PATH = "/lh"
 DEFAULT_LOG_LEVEL = "INFO"
 
 

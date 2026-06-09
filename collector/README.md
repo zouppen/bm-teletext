@@ -39,7 +39,7 @@ Environment variables:
 
 - `DATABASE_URL`: required PostgreSQL connection string.
 - `BM_LASTHEARD_URL`: optional, defaults to `https://api.brandmeister.network`.
-- `BM_LASTHEARD_SOCKETIO_PATH`: optional, defaults to `/lh/socket.io`.
+- `BM_LASTHEARD_SOCKETIO_PATH`: optional, defaults to `/lh`.
 - `BM_SOURCE_ID_PATTERN`: optional, defaults to `^244...$`.
 - `BM_LOG_LEVEL`: optional, defaults to `INFO`.
 

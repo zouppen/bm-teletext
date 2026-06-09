@@ -29,7 +29,7 @@ def test_appends_all_matching_events_without_deduplication() -> None:
     collector = LastHeardCollector(
         store=store,
         url="https://example.invalid",
-        socketio_path="/lh/socket.io",
+        socketio_path="/lh",
         source_id_filter=SourceIdFilter(),
     )
     message = {"payload": '{"SourceID": 244123, "SessionID": "abc"}'}
@@ -48,9 +48,23 @@ def test_skips_non_matching_events() -> None:
     collector = LastHeardCollector(
         store=store,
         url="https://example.invalid",
-        socketio_path="/lh/socket.io",
+        socketio_path="/lh",
         source_id_filter=SourceIdFilter(),
     )
 
     assert not collector.handle_mqtt({"payload": '{"SourceID": 2441234}'})
     assert store.payloads == []
+
+
+def test_collector_uses_configured_source_id_filter() -> None:
+    store = FakeStore()
+    collector = LastHeardCollector(
+        store=store,
+        url="https://example.invalid",
+        socketio_path="/lh",
+        source_id_filter=SourceIdFilter(r"^999.*$"),
+    )
+
+    assert collector.handle_mqtt({"payload": '{"SourceID": 999123}'})
+    assert not collector.handle_mqtt({"payload": '{"SourceID": 244123}'})
+    assert store.payloads == [{"SourceID": 999123}]
