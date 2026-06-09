@@ -19,7 +19,7 @@ different regular expression.
 Create a virtualenv and install the collector:
 
 ```sh
-cd /work/bm-collector
+cd bm-collector
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
@@ -52,7 +52,7 @@ adjust the paths, user, and `DATABASE_URL` for the target host.
 ## Tests
 
 ```sh
-cd /work/bm-collector
+cd bm-collector
 pytest
 ```
 
