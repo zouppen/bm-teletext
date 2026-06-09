@@ -5,20 +5,22 @@ stores matching raw events in PostgreSQL.
 
 The default filter is intentionally narrow:
 
-- `SourceID` must be present.
-- `SourceID` is converted to a canonical base-10 string.
-- The canonical string must match `^244...$`.
+- `ContextID` must be present in the BrandMeister wire payload.
+- `ContextID` is converted with plain `str(value)`.
+- The string must match `^244...$`.
 
-That default accepts six-digit `244xxx` repeater or hotspot IDs and rejects
-seven-digit Finnish amateur station IDs. Override `BM_SOURCE_ID_PATTERN` to use
-a different regular expression.
+BrandMeister's web table labels this repeater/link field as "Source", but the
+wire payload field used by the collector is `ContextID`. That default accepts
+six-digit `244xxx` repeater or hotspot IDs and rejects seven-digit Finnish
+amateur station IDs. Override `BM_CONTEXT_ID_PATTERN` to use a different regular
+expression.
 
 ## Setup
 
 Create a virtualenv and install the collector:
 
 ```sh
-cd /work/bm-teletext/collector
+cd /work/collector
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e '.[dev]'
@@ -40,7 +42,7 @@ Environment variables:
 - `DATABASE_URL`: required PostgreSQL connection string.
 - `BM_LASTHEARD_URL`: optional, defaults to `https://api.brandmeister.network`.
 - `BM_LASTHEARD_SOCKETIO_PATH`: optional, defaults to `/lh`.
-- `BM_SOURCE_ID_PATTERN`: optional, defaults to `^244...$`.
+- `BM_CONTEXT_ID_PATTERN`: optional, defaults to `^244...$`.
 - `BM_LOG_LEVEL`: optional, defaults to `INFO`.
 
 ## systemd
@@ -51,7 +53,7 @@ adjust the paths, user, and `DATABASE_URL` for the target host.
 ## Tests
 
 ```sh
-cd /work/bm-teletext/collector
+cd /work/collector
 pytest
 ```
 

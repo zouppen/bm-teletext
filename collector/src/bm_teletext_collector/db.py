@@ -14,8 +14,10 @@ CREATE TABLE IF NOT EXISTS lastheard_events (
 CREATE INDEX IF NOT EXISTS lastheard_events_received_at_idx
     ON lastheard_events (received_at);
 
-CREATE INDEX IF NOT EXISTS lastheard_events_source_id_idx
-    ON lastheard_events ((payload->>'SourceID'));
+DROP INDEX IF EXISTS lastheard_events_source_id_idx;
+
+CREATE INDEX IF NOT EXISTS lastheard_events_context_id_idx
+    ON lastheard_events ((payload->>'ContextID'));
 """
 
 

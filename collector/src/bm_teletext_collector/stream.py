@@ -7,7 +7,7 @@ import logging
 import time
 from typing import Any, Protocol
 
-from bm_teletext_collector.filters import SourceIdFilter
+from bm_teletext_collector.filters import ContextIdFilter
 
 
 LOGGER = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class LastHeardCollector:
     store: Store
     url: str
     socketio_path: str
-    source_id_filter: SourceIdFilter
+    context_id_filter: ContextIdFilter
     reconnect_delay_seconds: float = 5.0
     insert_retry_delay_seconds: float = 5.0
 
@@ -74,11 +74,11 @@ class LastHeardCollector:
         if payload is None:
             return False
 
-        if not self.source_id_filter.matches_payload(payload):
+        if not self.context_id_filter.matches_payload(payload):
             return False
 
         self.append_with_retry(payload)
-        LOGGER.info("stored event SourceID=%s", payload.get("SourceID"))
+        LOGGER.info("stored event ContextID=%s", payload.get("ContextID"))
         return True
 
     def append_with_retry(self, payload: Mapping[str, Any]) -> None:
