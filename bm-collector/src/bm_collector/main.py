@@ -13,7 +13,7 @@ from bm_collector.stream import LastHeardCollector
 def configure_logging(level: str) -> None:
     logging.basicConfig(
         level=getattr(logging, level.upper(), logging.INFO),
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+        format="%(levelname)s %(name)s: %(message)s",
     )
 
 
