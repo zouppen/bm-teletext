@@ -7,13 +7,12 @@ The default filter is intentionally narrow:
 
 - `ContextID` must be present in the BrandMeister wire payload.
 - `ContextID` is converted with plain `str(value)`.
-- The string must match `^244...$`.
+- The string is searched with the regex `^244`.
 
 BrandMeister's web table labels this repeater/link field as "Source", but the
 wire payload field used by the collector is `ContextID`. That default accepts
-six-digit `244xxx` repeater or hotspot IDs and rejects seven-digit Finnish
-amateur station IDs. Override `BM_CONTEXT_ID_PATTERN` to use a different regular
-expression.
+ContextID values beginning with `244`. Override `BM_CONTEXT_ID_PATTERN` to use a
+different regular expression.
 
 ## Setup
 
@@ -42,7 +41,7 @@ Environment variables:
 - `DATABASE_URL`: required PostgreSQL connection string.
 - `BM_LASTHEARD_URL`: optional, defaults to `https://api.brandmeister.network`.
 - `BM_LASTHEARD_SOCKETIO_PATH`: optional, defaults to `/lh`.
-- `BM_CONTEXT_ID_PATTERN`: optional, defaults to `^244...$`.
+- `BM_CONTEXT_ID_PATTERN`: optional, defaults to `^244`.
 - `BM_LOG_LEVEL`: optional, defaults to `INFO`.
 
 ## systemd

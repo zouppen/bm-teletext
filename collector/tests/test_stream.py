@@ -54,9 +54,7 @@ def test_skips_non_matching_context_id_even_when_source_id_matches() -> None:
         context_id_filter=ContextIdFilter(),
     )
 
-    assert not collector.handle_mqtt(
-        {"payload": '{"ContextID": 2441234, "SourceID": 244123}'}
-    )
+    assert not collector.handle_mqtt({"payload": '{"ContextID": 245000, "SourceID": 244123}'})
     assert store.payloads == []
 
 

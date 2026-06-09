@@ -20,27 +20,29 @@ def test_rejects_missing_context_id() -> None:
     assert is_finnish_repeater_event({}) is False
 
 
-def test_default_filter_accepts_six_digit_finnish_repeater_range() -> None:
+def test_default_filter_accepts_context_ids_starting_with_244() -> None:
+    assert is_finnish_repeater_event({"ContextID": 244})
     assert is_finnish_repeater_event({"ContextID": 244000})
-    assert is_finnish_repeater_event({"ContextID": 244123})
+    assert is_finnish_repeater_event({"ContextID": 244205})
     assert is_finnish_repeater_event({"ContextID": "244999"})
+    assert is_finnish_repeater_event({"ContextID": 2441234})
 
 
-def test_default_filter_rejects_out_of_range_context_ids() -> None:
+def test_default_filter_rejects_context_ids_not_starting_with_244() -> None:
     assert not is_finnish_repeater_event({"ContextID": 243999})
     assert not is_finnish_repeater_event({"ContextID": 245000})
+    assert not is_finnish_repeater_event({"ContextID": "0244205"})
 
 
-def test_default_filter_rejects_seven_digit_finnish_operator_style_ids() -> None:
-    assert not is_finnish_repeater_event({"ContextID": 2440000})
-    assert not is_finnish_repeater_event({"ContextID": "2441234"})
-    assert not is_finnish_repeater_event({"ContextID": 2449999})
+def test_default_filter_uses_search_semantics() -> None:
+    assert ContextIdFilter(r"^244").matches_payload({"ContextID": 244205})
+    assert ContextIdFilter(r"420").matches_payload({"ContextID": 244205})
 
 
 def test_default_filter_does_not_canonicalize_padded_or_float_values() -> None:
     assert not is_finnish_repeater_event({"ContextID": "0244123"})
     assert not is_finnish_repeater_event({"ContextID": " 244123 "})
-    assert not is_finnish_repeater_event({"ContextID": 244123.0})
+    assert is_finnish_repeater_event({"ContextID": 244123.0})
 
 
 def test_default_filter_ignores_source_id() -> None:
@@ -49,7 +51,7 @@ def test_default_filter_ignores_source_id() -> None:
 
 
 def test_custom_filter_pattern_is_supported() -> None:
-    context_filter = ContextIdFilter(r"^999\d{3}$")
+    context_filter = ContextIdFilter(r"^999")
 
     assert context_filter.matches_payload({"ContextID": 999123})
     assert not context_filter.matches_payload({"ContextID": 244123})

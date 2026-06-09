@@ -6,7 +6,7 @@ import re
 from typing import Any, Pattern
 
 
-DEFAULT_CONTEXT_ID_PATTERN = r"^244...$"
+DEFAULT_CONTEXT_ID_PATTERN = r"^244"
 
 
 def context_id_to_string(value: Any) -> str | None:
@@ -28,7 +28,7 @@ class ContextIdFilter:
         context_id = context_id_to_string(payload.get("ContextID"))
         return (
             context_id is not None
-            and self._compiled_pattern.fullmatch(context_id) is not None
+            and self._compiled_pattern.search(context_id) is not None
         )
 
 
