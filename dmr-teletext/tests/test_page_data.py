@@ -13,7 +13,9 @@ from dmr_teletext.page_data import (
     is_usable_rssi,
     local_day_marker_time,
     payload_to_entry,
+    printable_days,
     process_row,
+    timeline_entry_count,
 )
 
 
@@ -116,6 +118,37 @@ def test_local_day_marker_time_treats_naive_datetime_as_utc(set_timezone) -> Non
     day = local_day_marker_time(datetime(2026, 6, 10, 12, 0))
 
     assert day.isoformat() == "2026-06-10T23:59:59.999999+00:00"
+
+
+def test_printable_days_drops_newest_day(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    days = {
+        local_day_marker_time(datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)),
+        local_day_marker_time(datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)),
+    }
+
+    assert {day.isoformat() for day in printable_days(days)} == {
+        "2026-06-09T23:59:59.999999+03:00"
+    }
+
+
+def test_timeline_entry_count_counts_printable_days_only(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    entries_by_callsign = {
+        "OH2DPN": (
+            datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+            payload_to_entry(
+                datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+                {"SourceCall": "OH2DPN"},
+            ),
+        )
+    }
+    days = {
+        local_day_marker_time(datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc)),
+        local_day_marker_time(datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)),
+    }
+
+    assert timeline_entry_count(entries_by_callsign, days) == 2
 
 
 def test_process_row_appends_until_page_limit() -> None:
@@ -376,6 +409,64 @@ def test_build_page_collects_unique_callsigns_until_limit() -> None:
     assert len({entry["callsign"] for entry in heard}) == PAGE_ENTRY_LIMIT
 
 
+def test_build_page_single_day_limit_ignores_dropped_day_marker(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    rows = (
+        LastHeardRow(
+            received_at=datetime(2026, 6, 10, 12, minute, tzinfo=timezone.utc),
+            payload={"SourceCall": f"OH2{minute:03d}", "ContextID": "244200"},
+        )
+        for minute in range(PAGE_ENTRY_LIMIT + 1)
+    )
+
+    page = build_page(
+        rows,
+        generated_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert len(page["entries"]) == PAGE_ENTRY_LIMIT
+    assert len(heard_entries(page)) == PAGE_ENTRY_LIMIT
+    assert day_entries(page) == []
+
+
+def test_build_page_counts_printed_day_markers_against_limit(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    rows = (
+        LastHeardRow(
+            received_at=datetime(2026, 6, 10, 12, minute, tzinfo=timezone.utc),
+            payload={"SourceCall": f"OH2NEW{minute:03d}", "ContextID": "244200"},
+        )
+        for minute in range(PAGE_ENTRY_LIMIT - 2)
+    )
+    rows = iter(
+        [
+            *rows,
+            LastHeardRow(
+                received_at=datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2OLD", "ContextID": "244200"},
+            ),
+            LastHeardRow(
+                received_at=datetime(2026, 6, 8, 12, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2TOOOLD", "ContextID": "244200"},
+            ),
+        ]
+    )
+
+    page = build_page(
+        rows,
+        generated_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert len(page["entries"]) == PAGE_ENTRY_LIMIT
+    assert len(heard_entries(page)) == PAGE_ENTRY_LIMIT - 1
+    assert [entry["time"] for entry in day_entries(page)] == [
+        "2026-06-09T23:59:59.999999+03:00"
+    ]
+    callsigns = {entry["callsign"] for entry in heard_entries(page)}
+    assert "OH2OLD" in callsigns
+    assert "OH2TOOOLD" not in callsigns
+
+
 def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
 
@@ -384,9 +475,7 @@ def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
         generated_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
     )
 
-    assert page["entries"] == [
-        {"type": "day", "time": "2026-06-10T23:59:59.999999+03:00"}
-    ]
+    assert page["entries"] == []
     assert page["heard_count"] == 0
     assert "row_count" not in page
     assert "days" not in page
@@ -414,7 +503,6 @@ def test_build_page_collects_days_from_accepted_entries(set_timezone) -> None:
 
     assert {entry["time"] for entry in day_entries(page)} == {
         "2026-06-10T23:59:59.999999+03:00",
-        "2026-06-11T23:59:59.999999+03:00",
     }
     assert page["heard_count"] == 2
 
@@ -498,7 +586,7 @@ def test_build_page_sorts_heard_entries_and_days_together(set_timezone) -> None:
 
     page = build_page(
         rows,
-        generated_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        generated_at=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
     )
 
     assert [
