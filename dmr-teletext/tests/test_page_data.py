@@ -1,4 +1,8 @@
+import os
+import time
 from datetime import datetime, timezone
+
+import pytest
 
 from dmr_teletext.page_data import (
     DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
@@ -7,9 +11,30 @@ from dmr_teletext.page_data import (
     build_page,
     has_bit_errors,
     is_usable_rssi,
+    local_midnight,
     payload_to_entry,
     process_row,
 )
+
+
+@pytest.fixture
+def set_timezone(monkeypatch):
+    if not hasattr(time, "tzset"):
+        pytest.skip("time.tzset is required to test local timezone behavior")
+
+    original_tz = os.environ.get("TZ")
+
+    def apply(value: str) -> None:
+        monkeypatch.setenv("TZ", value)
+        time.tzset()
+
+    yield apply
+
+    if original_tz is None:
+        monkeypatch.delenv("TZ", raising=False)
+    else:
+        monkeypatch.setenv("TZ", original_tz)
+    time.tzset()
 
 
 def test_payload_to_entry_extracts_display_fields() -> None:
@@ -60,29 +85,55 @@ def test_is_usable_rssi() -> None:
     assert is_usable_rssi("-112.3")
 
 
+def test_local_midnight_uses_system_timezone(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+
+    day = local_midnight(datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc))
+
+    assert day.isoformat() == "2026-06-10T00:00:00+03:00"
+
+
+def test_local_midnight_maps_utc_boundary_to_local_day(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+
+    day = local_midnight(datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc))
+
+    assert day.isoformat() == "2026-06-10T00:00:00+03:00"
+
+
+def test_local_midnight_treats_naive_datetime_as_utc(set_timezone) -> None:
+    set_timezone("UTC")
+
+    day = local_midnight(datetime(2026, 6, 10, 12, 0))
+
+    assert day.isoformat() == "2026-06-10T00:00:00+00:00"
+
+
 def test_process_row_appends_until_page_limit() -> None:
     entries_by_callsign = {}
+    days = set()
 
     for index in range(PAGE_ENTRY_LIMIT - 1):
         row = LastHeardRow(
             received_at=datetime(2026, 6, 10, 12, index, tzinfo=timezone.utc),
             payload={"SourceCall": f"OH2{index:03d}", "ContextID": "244200"},
         )
-        assert not process_row(entries_by_callsign, row)
+        assert not process_row(entries_by_callsign, days, row)
 
     row = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, PAGE_ENTRY_LIMIT, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2LAST", "ContextID": "244200"},
     )
-    assert process_row(entries_by_callsign, row)
+    assert process_row(entries_by_callsign, days, row)
     assert len(entries_by_callsign) == PAGE_ENTRY_LIMIT
 
-    assert process_row(entries_by_callsign, row)
+    assert process_row(entries_by_callsign, days, row)
     assert len(entries_by_callsign) == PAGE_ENTRY_LIMIT
 
 
 def test_process_row_skips_duplicate_and_empty_callsigns() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2DPN", "ContextID": "244200"},
@@ -96,16 +147,55 @@ def test_process_row_skips_duplicate_and_empty_callsigns() -> None:
         payload={"SourceCall": "", "ContextID": "244202"},
     )
 
-    assert not process_row(entries_by_callsign, first)
-    assert not process_row(entries_by_callsign, duplicate)
-    assert not process_row(entries_by_callsign, empty)
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
+    assert not process_row(entries_by_callsign, days, empty)
 
     assert len(entries_by_callsign) == 1
     assert entries_by_callsign["OH2DPN"][1]["repeater_id"] == "244200"
 
 
+def test_process_row_adds_day_for_new_callsign(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    entries_by_callsign = {}
+    days = set()
+    row = LastHeardRow(
+        received_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
+        payload={"SourceCall": "OH2DPN", "ContextID": "244200"},
+    )
+
+    assert not process_row(entries_by_callsign, days, row)
+
+    assert {day.isoformat() for day in days} == {"2026-06-10T00:00:00+03:00"}
+
+
+def test_process_row_does_not_add_day_for_skipped_rows(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    entries_by_callsign = {}
+    days = set()
+    first = LastHeardRow(
+        received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        payload={"SourceCall": "OH2DPN", "ContextID": "244200"},
+    )
+    duplicate = LastHeardRow(
+        received_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
+        payload={"SourceCall": "OH2DPN", "ContextID": "244200"},
+    )
+    empty = LastHeardRow(
+        received_at=datetime(2026, 6, 8, 21, 30, tzinfo=timezone.utc),
+        payload={"SourceCall": "", "ContextID": "244201"},
+    )
+
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
+    assert not process_row(entries_by_callsign, days, empty)
+
+    assert {day.isoformat() for day in days} == {"2026-06-10T00:00:00+03:00"}
+
+
 def test_process_row_repairs_duplicate_rssi_and_ber_from_same_repeater() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={
@@ -131,8 +221,8 @@ def test_process_row_repairs_duplicate_rssi_and_ber_from_same_repeater() -> None
         },
     )
 
-    assert not process_row(entries_by_callsign, first)
-    assert not process_row(entries_by_callsign, duplicate)
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
 
     entry = entries_by_callsign["OH2DPN"][1]
     assert entry == {
@@ -149,6 +239,7 @@ def test_process_row_repairs_duplicate_rssi_and_ber_from_same_repeater() -> None
 
 def test_process_row_does_not_repair_rssi_from_different_repeater() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": 0},
@@ -158,14 +249,15 @@ def test_process_row_does_not_repair_rssi_from_different_repeater() -> None:
         payload={"SourceCall": "OH2DPN", "ContextID": "244201", "RSSI": -112.3},
     )
 
-    assert not process_row(entries_by_callsign, first)
-    assert not process_row(entries_by_callsign, duplicate)
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
 
     assert entries_by_callsign["OH2DPN"][1]["rssi"] == 0
 
 
 def test_process_row_does_not_repair_usable_rssi() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": -100.0},
@@ -175,14 +267,15 @@ def test_process_row_does_not_repair_usable_rssi() -> None:
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": -112.3},
     )
 
-    assert not process_row(entries_by_callsign, first)
-    assert not process_row(entries_by_callsign, duplicate)
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
 
     assert entries_by_callsign["OH2DPN"][1]["rssi"] == -100.0
 
 
 def test_process_row_does_not_repair_from_unusable_rssi() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": None},
@@ -192,14 +285,15 @@ def test_process_row_does_not_repair_from_unusable_rssi() -> None:
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": "bad"},
     )
 
-    assert not process_row(entries_by_callsign, first)
-    assert not process_row(entries_by_callsign, duplicate)
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
 
     assert entries_by_callsign["OH2DPN"][1]["rssi"] is None
 
 
 def test_process_row_repairs_rssi_at_default_window_boundary() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": None},
@@ -210,14 +304,15 @@ def test_process_row_repairs_rssi_at_default_window_boundary() -> None:
     )
 
     assert DEFAULT_RSSI_REPAIR_WINDOW_SECONDS == 300
-    assert not process_row(entries_by_callsign, first)
-    assert not process_row(entries_by_callsign, duplicate)
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
 
     assert entries_by_callsign["OH2DPN"][1]["rssi"] == -112.3
 
 
 def test_process_row_does_not_repair_rssi_outside_default_window() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": None},
@@ -227,14 +322,15 @@ def test_process_row_does_not_repair_rssi_outside_default_window() -> None:
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": -112.3},
     )
 
-    assert not process_row(entries_by_callsign, first)
-    assert not process_row(entries_by_callsign, duplicate)
+    assert not process_row(entries_by_callsign, days, first)
+    assert not process_row(entries_by_callsign, days, duplicate)
 
     assert entries_by_callsign["OH2DPN"][1]["rssi"] is None
 
 
 def test_process_row_uses_custom_repair_window() -> None:
     entries_by_callsign = {}
+    days = set()
     first = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": None},
@@ -244,8 +340,8 @@ def test_process_row_uses_custom_repair_window() -> None:
         payload={"SourceCall": "OH2DPN", "ContextID": "244200", "RSSI": -112.3},
     )
 
-    assert not process_row(entries_by_callsign, first, repair_window_seconds=29)
-    assert not process_row(entries_by_callsign, duplicate, repair_window_seconds=29)
+    assert not process_row(entries_by_callsign, days, first, repair_window_seconds=29)
+    assert not process_row(entries_by_callsign, days, duplicate, repair_window_seconds=29)
 
     assert entries_by_callsign["OH2DPN"][1]["rssi"] is None
 
@@ -267,6 +363,45 @@ def test_build_page_collects_unique_callsigns_until_limit() -> None:
     assert len(page["entries"]) == PAGE_ENTRY_LIMIT
     assert page["row_count"] == PAGE_ENTRY_LIMIT
     assert len({entry["callsign"] for entry in page["entries"]}) == PAGE_ENTRY_LIMIT
+
+
+def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+
+    page = build_page(
+        iter(()),
+        generated_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
+    )
+
+    assert page["entries"] == []
+    assert page["row_count"] == 0
+    assert set(page["days"]) == {"2026-06-10T00:00:00+03:00"}
+
+
+def test_build_page_collects_days_from_accepted_entries(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    rows = iter(
+        [
+            LastHeardRow(
+                received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2DPN", "ContextID": 244200},
+            ),
+            LastHeardRow(
+                received_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2ABC", "ContextID": 244201},
+            ),
+        ]
+    )
+
+    page = build_page(
+        rows,
+        generated_at=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert set(page["days"]) == {
+        "2026-06-10T00:00:00+03:00",
+        "2026-06-11T00:00:00+03:00",
+    }
 
 
 def test_build_page_keeps_newest_row_for_callsign() -> None:
