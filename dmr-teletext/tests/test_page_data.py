@@ -11,7 +11,7 @@ from dmr_teletext.page_data import (
     build_page,
     has_bit_errors,
     is_usable_rssi,
-    local_midnight,
+    local_day_marker_time,
     payload_to_entry,
     process_row,
 )
@@ -94,28 +94,28 @@ def test_is_usable_rssi() -> None:
     assert is_usable_rssi("-112.3")
 
 
-def test_local_midnight_uses_system_timezone(set_timezone) -> None:
+def test_local_day_marker_time_uses_system_timezone(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
 
-    day = local_midnight(datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc))
+    day = local_day_marker_time(datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc))
 
-    assert day.isoformat() == "2026-06-10T00:00:00+03:00"
+    assert day.isoformat() == "2026-06-10T23:59:59.999999+03:00"
 
 
-def test_local_midnight_maps_utc_boundary_to_local_day(set_timezone) -> None:
+def test_local_day_marker_time_maps_utc_boundary_to_local_day(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
 
-    day = local_midnight(datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc))
+    day = local_day_marker_time(datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc))
 
-    assert day.isoformat() == "2026-06-10T00:00:00+03:00"
+    assert day.isoformat() == "2026-06-10T23:59:59.999999+03:00"
 
 
-def test_local_midnight_treats_naive_datetime_as_utc(set_timezone) -> None:
+def test_local_day_marker_time_treats_naive_datetime_as_utc(set_timezone) -> None:
     set_timezone("UTC")
 
-    day = local_midnight(datetime(2026, 6, 10, 12, 0))
+    day = local_day_marker_time(datetime(2026, 6, 10, 12, 0))
 
-    assert day.isoformat() == "2026-06-10T00:00:00+00:00"
+    assert day.isoformat() == "2026-06-10T23:59:59.999999+00:00"
 
 
 def test_process_row_appends_until_page_limit() -> None:
@@ -175,7 +175,7 @@ def test_process_row_adds_day_for_new_callsign(set_timezone) -> None:
 
     assert not process_row(entries_by_callsign, days, row)
 
-    assert {day.isoformat() for day in days} == {"2026-06-10T00:00:00+03:00"}
+    assert {day.isoformat() for day in days} == {"2026-06-10T23:59:59.999999+03:00"}
 
 
 def test_process_row_does_not_add_day_for_skipped_rows(set_timezone) -> None:
@@ -199,7 +199,7 @@ def test_process_row_does_not_add_day_for_skipped_rows(set_timezone) -> None:
     assert not process_row(entries_by_callsign, days, duplicate)
     assert not process_row(entries_by_callsign, days, empty)
 
-    assert {day.isoformat() for day in days} == {"2026-06-10T00:00:00+03:00"}
+    assert {day.isoformat() for day in days} == {"2026-06-10T23:59:59.999999+03:00"}
 
 
 def test_process_row_repairs_duplicate_rssi_and_ber_from_same_repeater() -> None:
@@ -385,7 +385,7 @@ def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
     )
 
     assert page["entries"] == [
-        {"type": "day", "time": "2026-06-10T00:00:00+03:00"}
+        {"type": "day", "time": "2026-06-10T23:59:59.999999+03:00"}
     ]
     assert page["heard_count"] == 0
     assert "row_count" not in page
@@ -413,8 +413,8 @@ def test_build_page_collects_days_from_accepted_entries(set_timezone) -> None:
     )
 
     assert {entry["time"] for entry in day_entries(page)} == {
-        "2026-06-10T00:00:00+03:00",
-        "2026-06-11T00:00:00+03:00",
+        "2026-06-10T23:59:59.999999+03:00",
+        "2026-06-11T23:59:59.999999+03:00",
     }
     assert page["heard_count"] == 2
 
@@ -482,12 +482,16 @@ def test_build_page_sorts_heard_entries_and_days_together(set_timezone) -> None:
     rows = iter(
         [
             LastHeardRow(
-                received_at=datetime(2026, 6, 10, 10, 0, tzinfo=timezone.utc),
-                payload={"SourceCall": "OH2OLD", "ContextID": 244200},
+                received_at=datetime(2026, 6, 10, 20, 59, 59, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2LATE", "ContextID": 244200},
             ),
             LastHeardRow(
                 received_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
                 payload={"SourceCall": "OH2NEW_DAY", "ContextID": 244201},
+            ),
+            LastHeardRow(
+                received_at=datetime(2026, 6, 10, 10, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2MID_DAY", "ContextID": 244202},
             ),
         ]
     )
@@ -500,11 +504,12 @@ def test_build_page_sorts_heard_entries_and_days_together(set_timezone) -> None:
     assert [
         (entry["type"], entry["time"]) for entry in page["entries"]
     ] == [
+        ("day", "2026-06-10T23:59:59.999999+03:00"),
+        ("heard", "2026-06-10T20:59:59+00:00"),
         ("heard", "2026-06-10T10:00:00+00:00"),
         ("heard", "2026-06-09T21:30:00+00:00"),
-        ("day", "2026-06-10T00:00:00+03:00"),
     ]
-    assert page["heard_count"] == 2
+    assert page["heard_count"] == 3
 
 
 def test_build_page_preserves_ordering_after_rssi_repair() -> None:

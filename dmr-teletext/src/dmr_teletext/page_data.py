@@ -95,11 +95,11 @@ def is_usable_rssi(value: Any) -> bool:
         return False
 
 
-def local_midnight(value: datetime) -> datetime:
+def local_day_marker_time(value: datetime) -> datetime:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     local_value = value.astimezone()
-    return local_value.replace(hour=0, minute=0, second=0, microsecond=0)
+    return local_value.replace(hour=23, minute=59, second=59, microsecond=999999)
 
 
 def repair_signal_quality(
@@ -148,7 +148,7 @@ def process_row(
         return False
 
     entries_by_callsign[callsign] = (row.received_at, entry)
-    days.add(local_midnight(row.received_at))
+    days.add(local_day_marker_time(row.received_at))
     return len(entries_by_callsign) >= PAGE_ENTRY_LIMIT
 
 
@@ -159,7 +159,7 @@ def build_page(
 ) -> PageData:
     page = create_page(generated_at)
     entries_by_callsign: EntryByCallsign = {}
-    days = {local_midnight(datetime.fromisoformat(page["generated_at"]))}
+    days = {local_day_marker_time(datetime.fromisoformat(page["generated_at"]))}
 
     for row in rows:
         if process_row(entries_by_callsign, days, row, repair_window_seconds):
