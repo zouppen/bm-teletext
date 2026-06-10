@@ -26,6 +26,11 @@ dmr-teletext-page-data
 The page entry limit is a code constant because the final capacity depends on
 the teletext template.
 
+Optional configuration:
+
+- `DMR_TELETEXT_RSSI_REPAIR_WINDOW_SECONDS`: maximum age difference for
+  repairing missing RSSI/BER from a duplicate callsign row. Defaults to `300`.
+
 ## Tests
 
 ```sh

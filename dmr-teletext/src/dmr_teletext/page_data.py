@@ -7,6 +7,7 @@ from typing import Any, TypedDict
 
 
 PAGE_ENTRY_LIMIT = 20
+DEFAULT_RSSI_REPAIR_WINDOW_SECONDS = 300
 
 
 class PageEntry(TypedDict):
@@ -76,25 +77,70 @@ def has_bit_errors(value: Any) -> bool:
         return bool(value)
 
 
-def process_row(entries_by_callsign: EntryByCallsign, row: LastHeardRow) -> bool:
+def is_usable_rssi(value: Any) -> bool:
+    try:
+        return float(value) < 0.0
+    except (TypeError, ValueError):
+        return False
+
+
+def repair_signal_quality(
+    stored_received_at: datetime,
+    stored_entry: PageEntry,
+    duplicate_received_at: datetime,
+    duplicate_entry: PageEntry,
+    repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
+) -> None:
+    age_seconds = (stored_received_at - duplicate_received_at).total_seconds()
+    if age_seconds > repair_window_seconds:
+        return
+    if stored_entry["repeater_id"] != duplicate_entry["repeater_id"]:
+        return
+    if is_usable_rssi(stored_entry["rssi"]):
+        return
+    if not is_usable_rssi(duplicate_entry["rssi"]):
+        return
+
+    stored_entry["rssi"] = duplicate_entry["rssi"]
+    stored_entry["be"] = duplicate_entry["be"]
+
+
+def process_row(
+    entries_by_callsign: EntryByCallsign,
+    row: LastHeardRow,
+    repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
+) -> bool:
     if len(entries_by_callsign) >= PAGE_ENTRY_LIMIT:
         return True
 
     entry = payload_to_entry(row.received_at, row.payload)
     callsign = entry["callsign"]
-    if not callsign or callsign in entries_by_callsign:
+    if not callsign:
+        return False
+    if callsign in entries_by_callsign:
+        stored_received_at, stored_entry = entries_by_callsign[callsign]
+        repair_signal_quality(
+            stored_received_at,
+            stored_entry,
+            row.received_at,
+            entry,
+            repair_window_seconds,
+        )
         return False
 
     entries_by_callsign[callsign] = (row.received_at, entry)
     return len(entries_by_callsign) >= PAGE_ENTRY_LIMIT
 
 
-def build_page(rows: Iterator[LastHeardRow]) -> PageData:
+def build_page(
+    rows: Iterator[LastHeardRow],
+    repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
+) -> PageData:
     page = create_page()
     entries_by_callsign: EntryByCallsign = {}
 
     for row in rows:
-        if process_row(entries_by_callsign, row):
+        if process_row(entries_by_callsign, row, repair_window_seconds):
             break
 
     page["entries"] = [
