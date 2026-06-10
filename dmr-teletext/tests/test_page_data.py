@@ -151,6 +151,10 @@ def test_timeline_entry_count_counts_printable_days_only(set_timezone) -> None:
     assert timeline_entry_count(entries_by_callsign, days) == 2
 
 
+def test_timeline_entry_count_handles_empty_days() -> None:
+    assert timeline_entry_count({}, set()) == 0
+
+
 def test_process_row_appends_until_page_limit() -> None:
     entries_by_callsign = {}
     days = set()

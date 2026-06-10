@@ -109,7 +109,7 @@ def printable_days(days: DaySet) -> DaySet:
 
 
 def timeline_entry_count(entries_by_callsign: EntryByCallsign, days: DaySet) -> int:
-    return len(entries_by_callsign) + len(printable_days(days))
+    return len(entries_by_callsign) + max(len(days) - 1, 0)
 
 
 def repair_signal_quality(
@@ -159,7 +159,7 @@ def process_row(
 
     row_day = local_day_marker_time(row.received_at)
     candidate_days = {*days, row_day}
-    candidate_count = len(entries_by_callsign) + 1 + len(printable_days(candidate_days))
+    candidate_count = timeline_entry_count(entries_by_callsign, candidate_days) + 1
     if candidate_count > PAGE_ENTRY_LIMIT:
         return True
 
