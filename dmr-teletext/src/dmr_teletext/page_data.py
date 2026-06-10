@@ -138,14 +138,11 @@ def process_row(
     days: DaySet,
     row: LastHeardRow,
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
-) -> bool:
-    if timeline_entry_count(entries_by_callsign, days) >= PAGE_ENTRY_LIMIT:
-        return True
-
+) -> None:
     entry = payload_to_entry(row.received_at, row.payload)
     callsign = entry["callsign"]
     if not callsign:
-        return False
+        return
     if callsign in entries_by_callsign:
         stored_received_at, stored_entry = entries_by_callsign[callsign]
         repair_signal_quality(
@@ -155,17 +152,11 @@ def process_row(
             entry,
             repair_window_seconds,
         )
-        return False
+        return
 
     row_day = local_day_marker_time(row.received_at)
-    candidate_days = {*days, row_day}
-    candidate_count = timeline_entry_count(entries_by_callsign, candidate_days) + 1
-    if candidate_count > PAGE_ENTRY_LIMIT:
-        return True
-
-    entries_by_callsign[callsign] = (row.received_at, entry)
     days.add(row_day)
-    return candidate_count >= PAGE_ENTRY_LIMIT
+    entries_by_callsign[callsign] = (row.received_at, entry)
 
 
 def build_page(
@@ -178,7 +169,8 @@ def build_page(
     days = {local_day_marker_time(datetime.fromisoformat(page["generated_at"]))}
 
     for row in rows:
-        if process_row(entries_by_callsign, days, row, repair_window_seconds):
+        process_row(entries_by_callsign, days, row, repair_window_seconds)
+        if timeline_entry_count(entries_by_callsign, days) >= PAGE_ENTRY_LIMIT:
             break
 
     heard_entries: list[PageEntry] = [
@@ -193,5 +185,7 @@ def build_page(
         key=lambda item: datetime.fromisoformat(item["time"]),
         reverse=True,
     )
+    if page["entries"] and page["entries"][-1]["type"] == "day":
+        page["entries"].pop()
     page["heard_count"] = len(heard_entries)
     return page

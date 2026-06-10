@@ -164,16 +164,16 @@ def test_process_row_appends_until_page_limit() -> None:
             received_at=datetime(2026, 6, 10, 12, index, tzinfo=timezone.utc),
             payload={"SourceCall": f"OH2{index:03d}", "ContextID": "244200"},
         )
-        assert not process_row(entries_by_callsign, days, row)
+        process_row(entries_by_callsign, days, row)
 
     row = LastHeardRow(
         received_at=datetime(2026, 6, 10, 12, PAGE_ENTRY_LIMIT, tzinfo=timezone.utc),
         payload={"SourceCall": "OH2LAST", "ContextID": "244200"},
     )
-    assert process_row(entries_by_callsign, days, row)
+    process_row(entries_by_callsign, days, row)
     assert len(entries_by_callsign) == PAGE_ENTRY_LIMIT
 
-    assert process_row(entries_by_callsign, days, row)
+    process_row(entries_by_callsign, days, row)
     assert len(entries_by_callsign) == PAGE_ENTRY_LIMIT
 
 
@@ -469,6 +469,32 @@ def test_build_page_counts_printed_day_markers_against_limit(set_timezone) -> No
     callsigns = {entry["callsign"] for entry in heard_entries(page)}
     assert "OH2OLD" in callsigns
     assert "OH2TOOOLD" not in callsigns
+
+
+def test_build_page_removes_trailing_day_marker(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    rows = iter(
+        [
+            LastHeardRow(
+                received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2DPN", "ContextID": "244200"},
+            ),
+            LastHeardRow(
+                received_at=datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "", "ContextID": "244201"},
+            ),
+        ]
+    )
+
+    page = build_page(
+        rows,
+        generated_at=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert page["entries"][-1]["type"] == "heard"
+    assert {entry["time"] for entry in day_entries(page)} == {
+        "2026-06-10T23:59:59.999999+03:00"
+    }
 
 
 def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
