@@ -18,6 +18,9 @@ def test_lastheard_query_fetches_raw_payload() -> None:
 )
 def test_build_page_from_postgresql() -> None:
     page = build_page(iter_lastheard_rows(os.environ["DATABASE_URL"]))
+    heard_entries = [
+        entry for entry in page["entries"] if entry["type"] == "heard"
+    ]
 
-    assert len(page["entries"]) <= PAGE_ENTRY_LIMIT
-    assert page["row_count"] == len(page["entries"])
+    assert len(heard_entries) <= PAGE_ENTRY_LIMIT
+    assert page["heard_count"] == len(heard_entries)

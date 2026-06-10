@@ -3,15 +3,16 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
 
 PAGE_ENTRY_LIMIT = 20
 DEFAULT_RSSI_REPAIR_WINDOW_SECONDS = 300
 
 
-class PageEntry(TypedDict):
-    received_at: str
+class HeardEntry(TypedDict):
+    type: Literal["heard"]
+    time: str
     callsign: str | None
     name: str | None
     repeater_id: str | None
@@ -21,15 +22,22 @@ class PageEntry(TypedDict):
     be: bool
 
 
+class DayEntry(TypedDict):
+    type: Literal["day"]
+    time: str
+
+
+PageEntry = HeardEntry | DayEntry
+
+
 class PageData(TypedDict):
     generated_at: str
     page_entry_limit: int
-    row_count: int
-    days: list[str]
+    heard_count: int
     entries: list[PageEntry]
 
 
-EntryByCallsign = dict[str, tuple[datetime, PageEntry]]
+EntryByCallsign = dict[str, tuple[datetime, HeardEntry]]
 DaySet = set[datetime]
 
 
@@ -44,15 +52,15 @@ def create_page(generated_at: datetime | None = None) -> PageData:
     return {
         "generated_at": generated_at.isoformat(),
         "page_entry_limit": PAGE_ENTRY_LIMIT,
-        "row_count": 0,
-        "days": [],
+        "heard_count": 0,
         "entries": [],
     }
 
 
-def payload_to_entry(received_at: datetime, payload: Mapping[str, Any]) -> PageEntry:
+def payload_to_entry(received_at: datetime, payload: Mapping[str, Any]) -> HeardEntry:
     return {
-        "received_at": received_at.isoformat(),
+        "type": "heard",
+        "time": received_at.isoformat(),
         "callsign": payload_text(payload, "SourceCall"),
         "name": payload_text(payload, "SourceName"),
         "repeater_id": payload_text(payload, "ContextID"),
@@ -96,9 +104,9 @@ def local_midnight(value: datetime) -> datetime:
 
 def repair_signal_quality(
     stored_received_at: datetime,
-    stored_entry: PageEntry,
+    stored_entry: HeardEntry,
     duplicate_received_at: datetime,
-    duplicate_entry: PageEntry,
+    duplicate_entry: HeardEntry,
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
 ) -> None:
     age_seconds = (stored_received_at - duplicate_received_at).total_seconds()
@@ -157,12 +165,17 @@ def build_page(
         if process_row(entries_by_callsign, days, row, repair_window_seconds):
             break
 
-    page["entries"] = [
+    heard_entries: list[PageEntry] = [
         entry
-        for _, entry in sorted(
-            entries_by_callsign.values(), key=lambda item: item[0], reverse=True
-        )
+        for _, entry in entries_by_callsign.values()
     ]
-    page["row_count"] = len(page["entries"])
-    page["days"] = [day.isoformat() for day in days]
+    day_entries: list[PageEntry] = [
+        {"type": "day", "time": day.isoformat()} for day in days
+    ]
+    page["entries"] = sorted(
+        [*heard_entries, *day_entries],
+        key=lambda item: datetime.fromisoformat(item["time"]),
+        reverse=True,
+    )
+    page["heard_count"] = len(heard_entries)
     return page

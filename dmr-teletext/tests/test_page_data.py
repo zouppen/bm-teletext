@@ -37,6 +37,14 @@ def set_timezone(monkeypatch):
     time.tzset()
 
 
+def heard_entries(page):
+    return [entry for entry in page["entries"] if entry["type"] == "heard"]
+
+
+def day_entries(page):
+    return [entry for entry in page["entries"] if entry["type"] == "day"]
+
+
 def test_payload_to_entry_extracts_display_fields() -> None:
     received_at = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
     entry = payload_to_entry(
@@ -53,7 +61,8 @@ def test_payload_to_entry_extracts_display_fields() -> None:
     )
 
     assert entry == {
-        "received_at": "2026-06-10T12:00:00+00:00",
+        "type": "heard",
+        "time": "2026-06-10T12:00:00+00:00",
         "callsign": "OH2DPN",
         "name": "Nick",
         "repeater_id": "244200",
@@ -226,7 +235,8 @@ def test_process_row_repairs_duplicate_rssi_and_ber_from_same_repeater() -> None
 
     entry = entries_by_callsign["OH2DPN"][1]
     assert entry == {
-        "received_at": "2026-06-10T12:00:00+00:00",
+        "type": "heard",
+        "time": "2026-06-10T12:00:00+00:00",
         "callsign": "OH2DPN",
         "name": "Nick",
         "repeater_id": "244200",
@@ -360,9 +370,10 @@ def test_build_page_collects_unique_callsigns_until_limit() -> None:
 
     page = build_page(rows)
 
-    assert len(page["entries"]) == PAGE_ENTRY_LIMIT
-    assert page["row_count"] == PAGE_ENTRY_LIMIT
-    assert len({entry["callsign"] for entry in page["entries"]}) == PAGE_ENTRY_LIMIT
+    heard = heard_entries(page)
+    assert len(heard) == PAGE_ENTRY_LIMIT
+    assert page["heard_count"] == PAGE_ENTRY_LIMIT
+    assert len({entry["callsign"] for entry in heard}) == PAGE_ENTRY_LIMIT
 
 
 def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
@@ -373,9 +384,12 @@ def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
         generated_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
     )
 
-    assert page["entries"] == []
-    assert page["row_count"] == 0
-    assert set(page["days"]) == {"2026-06-10T00:00:00+03:00"}
+    assert page["entries"] == [
+        {"type": "day", "time": "2026-06-10T00:00:00+03:00"}
+    ]
+    assert page["heard_count"] == 0
+    assert "row_count" not in page
+    assert "days" not in page
 
 
 def test_build_page_collects_days_from_accepted_entries(set_timezone) -> None:
@@ -398,10 +412,11 @@ def test_build_page_collects_days_from_accepted_entries(set_timezone) -> None:
         generated_at=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
     )
 
-    assert set(page["days"]) == {
+    assert {entry["time"] for entry in day_entries(page)} == {
         "2026-06-10T00:00:00+03:00",
         "2026-06-11T00:00:00+03:00",
     }
+    assert page["heard_count"] == 2
 
 
 def test_build_page_keeps_newest_row_for_callsign() -> None:
@@ -420,9 +435,10 @@ def test_build_page_keeps_newest_row_for_callsign() -> None:
 
     page = build_page(rows)
 
-    assert page["entries"] == [
+    assert heard_entries(page) == [
         {
-            "received_at": "2026-06-10T12:00:00+00:00",
+            "type": "heard",
+            "time": "2026-06-10T12:00:00+00:00",
             "callsign": "OH2DPN",
             "name": None,
             "repeater_id": "244200",
@@ -434,7 +450,7 @@ def test_build_page_keeps_newest_row_for_callsign() -> None:
     ]
 
 
-def test_build_page_sorts_entries_by_received_at_newest_first() -> None:
+def test_build_page_sorts_entries_by_time_newest_first() -> None:
     rows = iter(
         [
             LastHeardRow(
@@ -454,11 +470,41 @@ def test_build_page_sorts_entries_by_received_at_newest_first() -> None:
 
     page = build_page(rows)
 
-    assert [entry["callsign"] for entry in page["entries"]] == [
+    assert [entry["callsign"] for entry in heard_entries(page)] == [
         "OH2NEW",
         "OH2MID",
         "OH2OLD",
     ]
+
+
+def test_build_page_sorts_heard_entries_and_days_together(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    rows = iter(
+        [
+            LastHeardRow(
+                received_at=datetime(2026, 6, 10, 10, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2OLD", "ContextID": 244200},
+            ),
+            LastHeardRow(
+                received_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2NEW_DAY", "ContextID": 244201},
+            ),
+        ]
+    )
+
+    page = build_page(
+        rows,
+        generated_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert [
+        (entry["type"], entry["time"]) for entry in page["entries"]
+    ] == [
+        ("heard", "2026-06-10T10:00:00+00:00"),
+        ("heard", "2026-06-09T21:30:00+00:00"),
+        ("day", "2026-06-10T00:00:00+03:00"),
+    ]
+    assert page["heard_count"] == 2
 
 
 def test_build_page_preserves_ordering_after_rssi_repair() -> None:
@@ -485,6 +531,7 @@ def test_build_page_preserves_ordering_after_rssi_repair() -> None:
 
     page = build_page(rows)
 
-    assert [entry["callsign"] for entry in page["entries"]] == ["OH2DPN", "OH2ABC"]
-    assert page["entries"][0]["received_at"] == "2026-06-10T12:00:00+00:00"
-    assert page["entries"][0]["rssi"] == -112.3
+    heard = heard_entries(page)
+    assert [entry["callsign"] for entry in heard] == ["OH2DPN", "OH2ABC"]
+    assert heard[0]["time"] == "2026-06-10T12:00:00+00:00"
+    assert heard[0]["rssi"] == -112.3
