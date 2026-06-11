@@ -534,6 +534,38 @@ def test_build_page_counts_printed_day_markers_against_limit(set_timezone) -> No
     assert "OH2TOOOLD" not in callsigns
 
 
+def test_build_page_drops_day_marker_that_would_end_truncated_page(
+    set_timezone,
+) -> None:
+    set_timezone("Europe/Helsinki")
+    rows = (
+        LastHeardRow(
+            received_at=datetime(2026, 6, 10, 12, minute, tzinfo=timezone.utc),
+            payload={"SourceCall": f"OH2NEW{minute:03d}", "ContextID": "244200"},
+        )
+        for minute in range(PAGE_ENTRY_LIMIT - 1)
+    )
+    rows = iter(
+        [
+            *rows,
+            LastHeardRow(
+                received_at=datetime(2026, 6, 9, 12, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2OLD", "ContextID": "244200"},
+            ),
+        ]
+    )
+
+    page = build_page(
+        rows,
+        page_time=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+    )
+
+    assert len(page["entries"]) == PAGE_ENTRY_LIMIT - 1
+    assert page["entries"][-1]["type"] == "heard"
+    callsigns = {entry["payload"].get("SourceCall") for entry in heard_entries(page)}
+    assert "OH2OLD" not in callsigns
+
+
 def test_build_page_removes_trailing_day_marker(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
     rows = iter(

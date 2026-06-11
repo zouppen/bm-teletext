@@ -186,7 +186,8 @@ def build_page(
     )
     if page["entries"] and page["entries"][0]["type"] == "day":
         page["entries"].pop(0)
+    page["entries"] = page["entries"][:PAGE_ENTRY_LIMIT]
     if page["entries"] and page["entries"][-1]["type"] == "day":
-        page["entries"].pop(-1)
+        page["entries"].pop()
     page["heard_count"] = len(heard_entries)
     return page
