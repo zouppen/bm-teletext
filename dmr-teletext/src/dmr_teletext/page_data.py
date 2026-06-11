@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal, TypedDict
 
 
@@ -99,13 +99,8 @@ def local_day_marker_time(value: datetime) -> datetime:
     if value.tzinfo is None:
         value = value.replace(tzinfo=timezone.utc)
     local_value = value.astimezone()
-    return local_value.replace(hour=23, minute=59, second=59, microsecond=999999)
-
-
-def printable_days(days: DaySet) -> DaySet:
-    if not days:
-        return set()
-    return days - {max(days)}
+    local_midnight = local_value.replace(hour=0, minute=0, second=0, microsecond=0)
+    return local_midnight + timedelta(days=1)
 
 
 def timeline_entry_count(entries_by_callsign: EntryByCallsign, days: DaySet) -> int:
@@ -178,14 +173,16 @@ def build_page(
         for _, entry in entries_by_callsign.values()
     ]
     day_entries: list[PageEntry] = [
-        {"type": "day", "time": day.isoformat()} for day in printable_days(days)
+        {"type": "day", "time": day.isoformat()} for day in days
     ]
     page["entries"] = sorted(
         [*heard_entries, *day_entries],
         key=lambda item: datetime.fromisoformat(item["time"]),
         reverse=True,
     )
+    if page["entries"] and page["entries"][0]["type"] == "day":
+        page["entries"].pop(0)
     if page["entries"] and page["entries"][-1]["type"] == "day":
-        page["entries"].pop()
+        page["entries"].pop(-1)
     page["heard_count"] = len(heard_entries)
     return page
