@@ -3,7 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from dmr_teletext.page_data import PageData, PageEntry
+from dmr_teletext.page_data import (
+    HeardEntry,
+    PageData,
+    PageEntry,
+    has_bit_errors,
+    payload_text,
+)
 
 
 LINE_WIDTH = 40
@@ -39,15 +45,24 @@ def format_day(value: str) -> str:
 
 def format_heard(entry: PageEntry) -> str:
     time_text = parse_local_time(entry["time"]).strftime("%H:%M")
-    rssi = format_rssi(entry["rssi"])
-    marker = "*" if entry["be"] else ""
+    payload = entry["payload"]
+    rssi = format_rssi(payload.get("RSSI"))
+    marker = "*" if has_bit_errors(payload.get("BER")) else ""
     return format_columns(
         time_text,
-        entry["callsign"] or "",
-        entry["repeater"] or "",
+        heard_callsign(entry) or "",
+        heard_repeater(entry) or "",
         rssi,
         marker,
     )
+
+
+def heard_callsign(entry: HeardEntry) -> str | None:
+    return payload_text(entry["payload"], "SourceCall")
+
+
+def heard_repeater(entry: HeardEntry) -> str | None:
+    return payload_text(entry["payload"], "LinkCall")
 
 
 def format_columns(

@@ -36,15 +36,26 @@ def heard_entry(**overrides):
     entry = {
         "type": "heard",
         "time": "2026-06-10T12:34:00+00:00",
-        "callsign": "OH2DPN",
-        "name": "Nick",
-        "repeater_id": "244200",
-        "repeater": "OH2DMRH Pasila",
-        "tg": "2442",
-        "rssi": -109.3,
-        "be": False,
+        "payload": {
+            "SourceCall": "OH2DPN",
+            "SourceName": "Nick",
+            "ContextID": "244200",
+            "LinkCall": "OH2DMRH Pasila",
+            "DestinationID": "2442",
+            "RSSI": -109.3,
+            "BER": 0,
+        },
     }
-    entry.update(overrides)
+    aliases = {
+        "callsign": "SourceCall",
+        "repeater": "LinkCall",
+        "rssi": "RSSI",
+        "be": "BER",
+    }
+    payload_overrides = overrides.pop("payload", {})
+    entry["payload"].update(payload_overrides)
+    for key, value in overrides.items():
+        entry["payload"][aliases.get(key, key)] = value
     return entry
 
 

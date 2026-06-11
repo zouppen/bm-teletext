@@ -188,13 +188,14 @@ def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> Non
                 {
                     "type": "heard",
                     "time": "2026-06-10T12:34:00+00:00",
-                    "callsign": "OH2DPN",
-                    "name": None,
-                    "repeater_id": "244200",
-                    "repeater": "OH2DMRH Pasila",
-                    "tg": "2442",
-                    "rssi": -109.3,
-                    "be": True,
+                    "payload": {
+                        "SourceCall": "OH2DPN",
+                        "ContextID": "244200",
+                        "LinkCall": "OH2DMRH Pasila",
+                        "DestinationID": "2442",
+                        "RSSI": -109.3,
+                        "BER": True,
+                    },
                 }
             ],
         },

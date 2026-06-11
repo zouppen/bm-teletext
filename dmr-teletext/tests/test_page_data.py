@@ -12,7 +12,7 @@ from dmr_teletext.page_data import (
     has_bit_errors,
     is_usable_rssi,
     local_day_marker_time,
-    payload_to_entry,
+    row_to_heard_entry,
     prepare_row_addition,
     timeline_entry_count,
 )
@@ -63,32 +63,42 @@ def apply_row_addition(
     return addition
 
 
-def test_payload_to_entry_extracts_display_fields() -> None:
-    received_at = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
-    entry = payload_to_entry(
-        received_at,
-        {
-            "SourceCall": "OH2DPN",
-            "SourceName": "Nick",
-            "ContextID": 244200,
-            "LinkCall": "OH2DMRH Pasila",
-            "DestinationID": 2442,
-            "RSSI": -112.3,
-            "BER": 0,
-        },
+def test_row_to_heard_entry_copies_payload() -> None:
+    payload = {
+        "SourceCall": "OH2DPN",
+        "SourceName": "Nick",
+        "ContextID": 244200,
+        "LinkCall": "OH2DMRH Pasila",
+        "DestinationID": 2442,
+        "RSSI": -112.3,
+        "BER": 0,
+    }
+    row = LastHeardRow(
+        received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        payload=payload,
     )
+
+    entry = row_to_heard_entry(row)
 
     assert entry == {
         "type": "heard",
         "time": "2026-06-10T12:00:00+00:00",
-        "callsign": "OH2DPN",
-        "name": "Nick",
-        "repeater_id": "244200",
-        "repeater": "OH2DMRH Pasila",
-        "tg": "2442",
-        "rssi": -112.3,
-        "be": False,
+        "payload": payload,
     }
+    assert entry["payload"] is not payload
+
+
+def test_row_to_heard_entry_omits_repaired_by_default() -> None:
+    row = LastHeardRow(
+        received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        payload={"SourceCall": "OH2DPN"},
+    )
+
+    entry = row_to_heard_entry(
+        row,
+    )
+
+    assert "repaired" not in entry
 
 
 def test_has_bit_errors() -> None:
@@ -141,9 +151,11 @@ def test_timeline_entry_count_excludes_newest_day_marker(set_timezone) -> None:
     entries_by_callsign = {
         "OH2DPN": (
             datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
-            payload_to_entry(
-                datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
-                {"SourceCall": "OH2DPN"},
+            row_to_heard_entry(
+                LastHeardRow(
+                    received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+                    payload={"SourceCall": "OH2DPN"},
+                )
             ),
         )
     }
@@ -202,7 +214,7 @@ def test_prepare_row_addition_skips_duplicate_and_empty_callsigns() -> None:
     assert not apply_row_addition(entries_by_callsign, days, empty)
 
     assert len(entries_by_callsign) == 1
-    assert entries_by_callsign["OH2DPN"][1]["repeater_id"] == "244200"
+    assert entries_by_callsign["OH2DPN"][1]["payload"]["ContextID"] == "244200"
 
 
 def test_prepare_row_addition_adds_day_for_new_callsign(set_timezone) -> None:
@@ -218,7 +230,7 @@ def test_prepare_row_addition_adds_day_for_new_callsign(set_timezone) -> None:
 
     assert addition is not None
     assert addition.callsign == "OH2DPN"
-    assert addition.entry["repeater_id"] == "244200"
+    assert addition.entry["payload"]["ContextID"] == "244200"
     assert addition.day.isoformat() == "2026-06-11T00:00:00+03:00"
     assert {day.isoformat() for day in days} == {"2026-06-11T00:00:00+03:00"}
 
@@ -235,7 +247,7 @@ def test_prepare_row_addition_returns_data_without_storing_it(set_timezone) -> N
 
     assert addition is not None
     assert addition.callsign == "OH2DPN"
-    assert addition.entry["repeater_id"] == "244200"
+    assert addition.entry["payload"]["ContextID"] == "244200"
     assert addition.day.isoformat() == "2026-06-11T00:00:00+03:00"
     assert entries_by_callsign == {}
 
@@ -292,21 +304,34 @@ def test_prepare_row_addition_repairs_duplicate_rssi_and_ber_from_same_repeater(
         },
     )
 
-    assert apply_row_addition(entries_by_callsign, days, first) is not None
-    assert not apply_row_addition(entries_by_callsign, days, duplicate)
+    first_addition = apply_row_addition(entries_by_callsign, days, first)
+    assert first_addition is not None
+    stored_entry_before = entries_by_callsign["OH2DPN"][1]
+
+    repair_addition = apply_row_addition(entries_by_callsign, days, duplicate)
+    assert repair_addition is not None
 
     entry = entries_by_callsign["OH2DPN"][1]
     assert entry == {
         "type": "heard",
         "time": "2026-06-10T12:00:00+00:00",
-        "callsign": "OH2DPN",
-        "name": "Nick",
-        "repeater_id": "244200",
-        "repeater": "OH2DMRH Pasila",
-        "tg": "2442",
-        "rssi": -112.3,
-        "be": True,
+        "payload": {
+            "SourceCall": "OH2DPN",
+            "SourceName": "Nick",
+            "ContextID": "244200",
+            "LinkCall": "OH2DMRH Pasila",
+            "DestinationID": 2442,
+            "RSSI": -112.3,
+            "BER": "0.1",
+        },
+        "repaired": True,
     }
+    assert stored_entry_before["payload"]["RSSI"] == 0
+    assert "repaired" not in stored_entry_before
+    assert first.payload["RSSI"] == 0
+    assert first.payload["BER"] == 0
+    assert duplicate.payload["RSSI"] == -112.3
+    assert duplicate.payload["BER"] == "0.1"
 
 
 def test_prepare_row_addition_does_not_repair_rssi_from_different_repeater() -> None:
@@ -324,7 +349,7 @@ def test_prepare_row_addition_does_not_repair_rssi_from_different_repeater() -> 
     assert apply_row_addition(entries_by_callsign, days, first) is not None
     assert not apply_row_addition(entries_by_callsign, days, duplicate)
 
-    assert entries_by_callsign["OH2DPN"][1]["rssi"] == 0
+    assert entries_by_callsign["OH2DPN"][1]["payload"].get("RSSI") == 0
 
 
 def test_prepare_row_addition_does_not_repair_usable_rssi() -> None:
@@ -342,7 +367,7 @@ def test_prepare_row_addition_does_not_repair_usable_rssi() -> None:
     assert apply_row_addition(entries_by_callsign, days, first) is not None
     assert not apply_row_addition(entries_by_callsign, days, duplicate)
 
-    assert entries_by_callsign["OH2DPN"][1]["rssi"] == -100.0
+    assert entries_by_callsign["OH2DPN"][1]["payload"].get("RSSI") == -100.0
 
 
 def test_prepare_row_addition_does_not_repair_from_unusable_rssi() -> None:
@@ -360,7 +385,7 @@ def test_prepare_row_addition_does_not_repair_from_unusable_rssi() -> None:
     assert apply_row_addition(entries_by_callsign, days, first) is not None
     assert not apply_row_addition(entries_by_callsign, days, duplicate)
 
-    assert entries_by_callsign["OH2DPN"][1]["rssi"] is None
+    assert entries_by_callsign["OH2DPN"][1]["payload"].get("RSSI") is None
 
 
 def test_prepare_row_addition_repairs_rssi_at_default_window_boundary() -> None:
@@ -377,9 +402,9 @@ def test_prepare_row_addition_repairs_rssi_at_default_window_boundary() -> None:
 
     assert DEFAULT_RSSI_REPAIR_WINDOW_SECONDS == 300
     assert apply_row_addition(entries_by_callsign, days, first) is not None
-    assert not apply_row_addition(entries_by_callsign, days, duplicate)
+    assert apply_row_addition(entries_by_callsign, days, duplicate) is not None
 
-    assert entries_by_callsign["OH2DPN"][1]["rssi"] == -112.3
+    assert entries_by_callsign["OH2DPN"][1]["payload"].get("RSSI") == -112.3
 
 
 def test_prepare_row_addition_does_not_repair_rssi_outside_default_window() -> None:
@@ -397,7 +422,7 @@ def test_prepare_row_addition_does_not_repair_rssi_outside_default_window() -> N
     assert apply_row_addition(entries_by_callsign, days, first) is not None
     assert not apply_row_addition(entries_by_callsign, days, duplicate)
 
-    assert entries_by_callsign["OH2DPN"][1]["rssi"] is None
+    assert entries_by_callsign["OH2DPN"][1]["payload"].get("RSSI") is None
 
 
 def test_prepare_row_addition_uses_custom_repair_window() -> None:
@@ -423,7 +448,7 @@ def test_prepare_row_addition_uses_custom_repair_window() -> None:
         repair_window_seconds=29,
     )
 
-    assert entries_by_callsign["OH2DPN"][1]["rssi"] is None
+    assert entries_by_callsign["OH2DPN"][1]["payload"].get("RSSI") is None
 
 
 def test_build_page_collects_unique_callsigns_until_limit() -> None:
@@ -446,7 +471,7 @@ def test_build_page_collects_unique_callsigns_until_limit() -> None:
     heard = heard_entries(page)
     assert len(heard) == PAGE_ENTRY_LIMIT
     assert page["heard_count"] == PAGE_ENTRY_LIMIT
-    assert len({entry["callsign"] for entry in heard}) == PAGE_ENTRY_LIMIT
+    assert len({entry["payload"].get("SourceCall") for entry in heard}) == PAGE_ENTRY_LIMIT
 
 
 def test_build_page_single_day_limit_ignores_dropped_day_marker(set_timezone) -> None:
@@ -502,7 +527,7 @@ def test_build_page_counts_printed_day_markers_against_limit(set_timezone) -> No
     assert [entry["time"] for entry in day_entries(page)] == [
         "2026-06-10T00:00:00+03:00"
     ]
-    callsigns = {entry["callsign"] for entry in heard_entries(page)}
+    callsigns = {entry["payload"].get("SourceCall") for entry in heard_entries(page)}
     assert "OH2OLD" in callsigns
     assert "OH2TOOOLD" not in callsigns
 
@@ -593,13 +618,7 @@ def test_build_page_keeps_newest_row_for_callsign() -> None:
         {
             "type": "heard",
             "time": "2026-06-10T12:00:00+00:00",
-            "callsign": "OH2DPN",
-            "name": None,
-            "repeater_id": "244200",
-            "repeater": None,
-            "tg": None,
-            "rssi": None,
-            "be": False,
+            "payload": {"SourceCall": "OH2DPN", "ContextID": 244200},
         }
     ]
 
@@ -624,7 +643,7 @@ def test_build_page_sorts_entries_by_time_newest_first() -> None:
 
     page = build_page(rows)
 
-    assert [entry["callsign"] for entry in heard_entries(page)] == [
+    assert [entry["payload"].get("SourceCall") for entry in heard_entries(page)] == [
         "OH2NEW",
         "OH2MID",
         "OH2OLD",
@@ -691,6 +710,9 @@ def test_build_page_preserves_ordering_after_rssi_repair() -> None:
     page = build_page(rows)
 
     heard = heard_entries(page)
-    assert [entry["callsign"] for entry in heard] == ["OH2DPN", "OH2ABC"]
+    assert [entry["payload"].get("SourceCall") for entry in heard] == [
+        "OH2DPN",
+        "OH2ABC",
+    ]
     assert heard[0]["time"] == "2026-06-10T12:00:00+00:00"
-    assert heard[0]["rssi"] == -112.3
+    assert heard[0]["payload"].get("RSSI") == -112.3

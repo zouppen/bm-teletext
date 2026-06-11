@@ -10,16 +10,11 @@ PAGE_ENTRY_LIMIT = 20
 DEFAULT_RSSI_REPAIR_WINDOW_SECONDS = 300
 
 
-class HeardEntry(TypedDict):
+class HeardEntry(TypedDict, total=False):
     type: Literal["heard"]
     time: str
-    callsign: str | None
-    name: str | None
-    repeater_id: str | None
-    repeater: str | None
-    tg: str | None
-    rssi: Any
-    be: bool
+    payload: dict[str, Any]
+    repaired: bool
 
 
 class DayEntry(TypedDict):
@@ -64,17 +59,11 @@ def create_page(page_time: datetime | None = None) -> PageData:
     }
 
 
-def payload_to_entry(received_at: datetime, payload: Mapping[str, Any]) -> HeardEntry:
+def row_to_heard_entry(row: LastHeardRow) -> HeardEntry:
     return {
         "type": "heard",
-        "time": received_at.isoformat(),
-        "callsign": payload_text(payload, "SourceCall"),
-        "name": payload_text(payload, "SourceName"),
-        "repeater_id": payload_text(payload, "ContextID"),
-        "repeater": payload_text(payload, "LinkCall"),
-        "tg": payload_text(payload, "DestinationID"),
-        "rssi": payload.get("RSSI"),
-        "be": has_bit_errors(payload.get("BER")),
+        "time": row.received_at.isoformat(),
+        "payload": dict(row.payload),
     }
 
 
@@ -120,19 +109,26 @@ def repair_signal_quality(
     duplicate_received_at: datetime,
     duplicate_entry: HeardEntry,
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
-) -> None:
+) -> HeardEntry | None:
     age_seconds = (stored_received_at - duplicate_received_at).total_seconds()
     if age_seconds > repair_window_seconds:
-        return
-    if stored_entry["repeater_id"] != duplicate_entry["repeater_id"]:
-        return
-    if is_usable_rssi(stored_entry["rssi"]):
-        return
-    if not is_usable_rssi(duplicate_entry["rssi"]):
-        return
+        return None
+    if (
+        payload_text(stored_entry["payload"], "ContextID")
+        != payload_text(duplicate_entry["payload"], "ContextID")
+    ):
+        return None
+    if is_usable_rssi(stored_entry["payload"].get("RSSI")):
+        return None
+    if not is_usable_rssi(duplicate_entry["payload"].get("RSSI")):
+        return None
 
-    stored_entry["rssi"] = duplicate_entry["rssi"]
-    stored_entry["be"] = duplicate_entry["be"]
+    repaired_entry = HeardEntry(stored_entry)
+    repaired_entry["payload"] = dict(stored_entry["payload"])
+    repaired_entry["payload"]["RSSI"] = duplicate_entry["payload"].get("RSSI")
+    repaired_entry["payload"]["BER"] = duplicate_entry["payload"].get("BER")
+    repaired_entry["repaired"] = True
+    return repaired_entry
 
 
 def prepare_row_addition(
@@ -140,20 +136,25 @@ def prepare_row_addition(
     row: LastHeardRow,
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
 ) -> RowAddition | None:
-    entry = payload_to_entry(row.received_at, row.payload)
-    callsign = entry["callsign"]
+    entry = row_to_heard_entry(row)
+    callsign = payload_text(entry["payload"], "SourceCall")
     if not callsign:
         return None
     if callsign in entries_by_callsign:
         stored_received_at, stored_entry = entries_by_callsign[callsign]
-        repair_signal_quality(
+        repaired_entry = repair_signal_quality(
             stored_received_at,
             stored_entry,
             row.received_at,
             entry,
             repair_window_seconds,
         )
-        return None
+        if repaired_entry is None:
+            return None
+        repaired_day = local_day_marker_time(
+            datetime.fromisoformat(repaired_entry["time"])
+        )
+        return RowAddition(callsign=callsign, entry=repaired_entry, day=repaired_day)
 
     row_day = local_day_marker_time(row.received_at)
     return RowAddition(callsign=callsign, entry=entry, day=row_day)
