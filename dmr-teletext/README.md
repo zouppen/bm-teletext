@@ -31,6 +31,9 @@ Optional configuration:
 
 - `DMR_TELETEXT_RSSI_REPAIR_WINDOW_SECONDS`: maximum age difference for
   repairing missing RSSI/BER from a duplicate callsign row. Defaults to `300`.
+- `DMR_TELETEXT_PAGE_TIME`: optional PostgreSQL `timestamptz` value for
+  generating a historical page. When set, only rows with `received_at` before
+  this time are read, and the output JSON uses this value as `page_time`.
 
 ## Tests
 

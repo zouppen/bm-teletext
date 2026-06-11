@@ -31,7 +31,7 @@ PageEntry = HeardEntry | DayEntry
 
 
 class PageData(TypedDict):
-    generated_at: str
+    page_time: str
     page_entry_limit: int
     heard_count: int
     entries: list[PageEntry]
@@ -47,10 +47,10 @@ class LastHeardRow:
     payload: Mapping[str, Any]
 
 
-def create_page(generated_at: datetime | None = None) -> PageData:
-    generated_at = generated_at or datetime.now(timezone.utc)
+def create_page(page_time: datetime | None = None) -> PageData:
+    page_time = page_time or datetime.now(timezone.utc)
     return {
-        "generated_at": generated_at.isoformat(),
+        "page_time": page_time.isoformat(),
         "page_entry_limit": PAGE_ENTRY_LIMIT,
         "heard_count": 0,
         "entries": [],
@@ -157,11 +157,11 @@ def process_row(
 def build_page(
     rows: Iterator[LastHeardRow],
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
-    generated_at: datetime | None = None,
+    page_time: datetime | None = None,
 ) -> PageData:
-    page = create_page(generated_at)
+    page = create_page(page_time)
     entries_by_callsign: EntryByCallsign = {}
-    days = {local_day_marker_time(datetime.fromisoformat(page["generated_at"]))}
+    days = {local_day_marker_time(datetime.fromisoformat(page["page_time"]))}
 
     for row in rows:
         process_row(entries_by_callsign, days, row, repair_window_seconds)

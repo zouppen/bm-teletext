@@ -394,7 +394,7 @@ def test_build_page_collects_unique_callsigns_until_limit() -> None:
 
     page = build_page(
         rows,
-        generated_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        page_time=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
     )
 
     heard = heard_entries(page)
@@ -415,7 +415,7 @@ def test_build_page_single_day_limit_ignores_dropped_day_marker(set_timezone) ->
 
     page = build_page(
         rows,
-        generated_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        page_time=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
     )
 
     assert len(page["entries"]) == PAGE_ENTRY_LIMIT
@@ -448,7 +448,7 @@ def test_build_page_counts_printed_day_markers_against_limit(set_timezone) -> No
 
     page = build_page(
         rows,
-        generated_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        page_time=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
     )
 
     assert len(page["entries"]) == PAGE_ENTRY_LIMIT
@@ -478,7 +478,7 @@ def test_build_page_removes_trailing_day_marker(set_timezone) -> None:
 
     page = build_page(
         rows,
-        generated_at=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
+        page_time=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
     )
 
     assert page["entries"][-1]["type"] == "heard"
@@ -487,12 +487,12 @@ def test_build_page_removes_trailing_day_marker(set_timezone) -> None:
     }
 
 
-def test_build_page_includes_generated_day_when_no_rows(set_timezone) -> None:
+def test_build_page_includes_page_time_day_when_no_rows(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
 
     page = build_page(
         iter(()),
-        generated_at=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
+        page_time=datetime(2026, 6, 9, 21, 30, tzinfo=timezone.utc),
     )
 
     assert page["entries"] == []
@@ -518,7 +518,7 @@ def test_build_page_collects_days_from_accepted_entries(set_timezone) -> None:
 
     page = build_page(
         rows,
-        generated_at=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
+        page_time=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
     )
 
     assert {entry["time"] for entry in day_entries(page)} == {
@@ -606,7 +606,7 @@ def test_build_page_sorts_heard_entries_and_days_together(set_timezone) -> None:
 
     page = build_page(
         rows,
-        generated_at=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
+        page_time=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
     )
 
     assert [
