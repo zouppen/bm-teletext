@@ -25,14 +25,14 @@ export DATABASE_URL='postgresql://user:password@localhost:5432/bm_teletext'
 dmr-teletext-page-data json
 dmr-teletext-page-data json --page-entry-limit 50
 dmr-teletext-page-data --page-time '2026-06-11 17:45' json
-dmr-teletext-page-data --rssi-repair-window-seconds 60 text
-dmr-teletext-page-data text
+dmr-teletext-page-data --rssi-repair-window-seconds 60 teletext
+dmr-teletext-page-data teletext
 ```
 
-The `json` subcommand emits structured JSON for debugging. The `text`
-subcommand emits a temporary fixed-width table for teletext layout experiments.
-Only the `json` subcommand accepts `--page-entry-limit`; teletext output stays
-fixed to the page template limit.
+The `json` subcommand emits structured JSON for debugging. The `teletext`
+subcommand emits a temporary fixed-width table for teletext layout experiments
+with 16 timeline entries. Only the `json` subcommand accepts
+`--page-entry-limit`.
 
 Global options must be placed before the subcommand. `--page-time` accepts a
 PostgreSQL `timestamptz` value for generating a historical page. When set, only

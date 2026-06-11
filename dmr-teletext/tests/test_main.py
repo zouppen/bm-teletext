@@ -19,9 +19,9 @@ def test_parse_cli_options_accepts_known_subcommands() -> None:
         page_time=None,
         rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
     )
-    assert main_module.parse_cli_options(["text"]) == main_module.CliOptions(
-        output_format="text",
-        page_entry_limit=PAGE_ENTRY_LIMIT,
+    assert main_module.parse_cli_options(["teletext"]) == main_module.CliOptions(
+        output_format="teletext",
+        page_entry_limit=main_module.TELETEXT_PAGE_ENTRY_LIMIT,
         page_time=None,
         rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
     )
@@ -45,11 +45,11 @@ def test_parse_cli_options_accepts_global_options() -> None:
             "2026-06-10 12:00:00+00",
             "--rssi-repair-window-seconds",
             "0",
-            "text",
+            "teletext",
         ]
     ) == main_module.CliOptions(
-        output_format="text",
-        page_entry_limit=PAGE_ENTRY_LIMIT,
+        output_format="teletext",
+        page_entry_limit=main_module.TELETEXT_PAGE_ENTRY_LIMIT,
         page_time="2026-06-10 12:00:00+00",
         rssi_repair_window_seconds=0,
     )
@@ -65,9 +65,11 @@ def test_parse_cli_options_accepts_global_options() -> None:
         ["json", "--page-entry-limit", "0"],
         ["json", "--page-entry-limit", "-1"],
         ["text", "--page-entry-limit", "3"],
+        ["teletext", "--page-entry-limit", "3"],
         ["--rssi-repair-window-seconds", "bad", "json"],
         ["--rssi-repair-window-seconds", "-1", "json"],
         ["json", "--rssi-repair-window-seconds", "42"],
+        ["text"],
     ],
 )
 def test_parse_cli_options_rejects_invalid_arguments(argv) -> None:
@@ -221,7 +223,7 @@ def test_main_json_subcommand_emits_json(monkeypatch, capsys) -> None:
     assert page["page_entry_limit"] == 3
 
 
-def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> None:
+def test_main_teletext_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> None:
     page_time = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
     calls = []
 
@@ -265,10 +267,10 @@ def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> Non
         fake_build_page,
     )
 
-    assert main_module.main(["--rssi-repair-window-seconds", "0", "text"]) == 0
+    assert main_module.main(["--rssi-repair-window-seconds", "0", "teletext"]) == 0
 
     output = capsys.readouterr().out.splitlines()
-    assert calls == [(0, PAGE_ENTRY_LIMIT)]
+    assert calls == [(0, main_module.TELETEXT_PAGE_ENTRY_LIMIT)]
     assert output[0] == "AIKA  KUTSU    TOISTIN            RSSI B"
     assert output[1].endswith("-109 *")
     assert all(len(line) == 40 for line in output)

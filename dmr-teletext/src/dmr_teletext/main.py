@@ -16,6 +16,9 @@ from dmr_teletext.page_data import (
 from dmr_teletext.text_format import format_page_text
 
 
+TELETEXT_PAGE_ENTRY_LIMIT = 16
+
+
 @dataclass(frozen=True)
 class CliOptions:
     output_format: str
@@ -71,8 +74,8 @@ def create_argument_parser() -> argparse.ArgumentParser:
         default=PAGE_ENTRY_LIMIT,
     )
 
-    text_parser = subparsers.add_parser("text")
-    text_parser.set_defaults(page_entry_limit=PAGE_ENTRY_LIMIT)
+    teletext_parser = subparsers.add_parser("teletext")
+    teletext_parser.set_defaults(page_entry_limit=TELETEXT_PAGE_ENTRY_LIMIT)
 
     return parser
 
@@ -120,13 +123,9 @@ def main(argv: list[str] | None = None) -> int:
         iter_lastheard_rows(database_url, page_time),
         repair_window_seconds=options.rssi_repair_window_seconds,
         page_time=page_time,
-        page_entry_limit=(
-            options.page_entry_limit
-            if options.output_format == "json"
-            else PAGE_ENTRY_LIMIT
-        ),
+        page_entry_limit=options.page_entry_limit,
     )
-    if options.output_format == "text":
+    if options.output_format == "teletext":
         print(format_page_text(page))
     else:
         print(json.dumps(page, indent=2, ensure_ascii=False))
