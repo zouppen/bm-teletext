@@ -472,7 +472,8 @@ def test_build_page_collects_unique_callsigns_until_limit() -> None:
 
     heard = heard_entries(page)
     assert len(heard) == PAGE_ENTRY_LIMIT
-    assert page["heard_count"] == PAGE_ENTRY_LIMIT
+    assert page["retained_callsign_count"] == PAGE_ENTRY_LIMIT
+    assert page["rows_iterated"] == PAGE_ENTRY_LIMIT * 2 - 3
     assert len({entry["payload"].get("SourceCall") for entry in heard}) == PAGE_ENTRY_LIMIT
 
 
@@ -601,8 +602,8 @@ def test_build_page_includes_page_time_day_when_no_rows(set_timezone) -> None:
     )
 
     assert page["entries"] == []
-    assert page["heard_count"] == 0
-    assert "row_count" not in page
+    assert page["retained_callsign_count"] == 0
+    assert page["rows_iterated"] == 0
     assert "days" not in page
 
 
@@ -629,7 +630,8 @@ def test_build_page_collects_days_from_accepted_entries(set_timezone) -> None:
     assert {entry["time"] for entry in day_entries(page)} == {
         "2026-06-11T00:00:00+03:00",
     }
-    assert page["heard_count"] == 2
+    assert page["retained_callsign_count"] == 2
+    assert page["rows_iterated"] == 2
 
 
 def test_build_page_keeps_newest_row_for_callsign() -> None:
@@ -716,7 +718,8 @@ def test_build_page_sorts_heard_entries_and_days_together(set_timezone) -> None:
         ("heard", "2026-06-10T10:00:00+00:00"),
         ("heard", "2026-06-09T21:30:00+00:00"),
     ]
-    assert page["heard_count"] == 3
+    assert page["retained_callsign_count"] == 3
+    assert page["rows_iterated"] == 3
 
 
 def test_build_page_preserves_ordering_after_rssi_repair() -> None:

@@ -108,7 +108,8 @@ def test_main_passes_page_time_to_query_and_output(monkeypatch, capsys) -> None:
         return {
             "page_time": page_time.isoformat(),
             "page_entry_limit": 20,
-            "heard_count": 0,
+            "retained_callsign_count": 0,
+            "rows_iterated": 0,
             "entries": [],
         }
 
@@ -157,7 +158,8 @@ def test_main_json_subcommand_emits_json(monkeypatch, capsys) -> None:
         lambda rows, repair_window_seconds, page_time: {
             "page_time": page_time.isoformat(),
             "page_entry_limit": 20,
-            "heard_count": 0,
+            "retained_callsign_count": 0,
+            "rows_iterated": 0,
             "entries": [],
         },
     )
@@ -183,7 +185,8 @@ def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> Non
         lambda rows, repair_window_seconds, page_time: {
             "page_time": page_time.isoformat(),
             "page_entry_limit": 20,
-            "heard_count": 1,
+            "retained_callsign_count": 1,
+            "rows_iterated": 1,
             "entries": [
                 {
                     "type": "heard",

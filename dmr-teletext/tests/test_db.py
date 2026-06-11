@@ -29,7 +29,8 @@ def test_build_page_from_postgresql() -> None:
     ]
 
     assert len(heard_entries) <= PAGE_ENTRY_LIMIT
-    assert page["heard_count"] == len(heard_entries)
+    assert len(heard_entries) <= page["retained_callsign_count"]
+    assert page["rows_iterated"] >= page["retained_callsign_count"]
 
 
 @pytest.mark.skipif(

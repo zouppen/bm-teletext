@@ -145,7 +145,8 @@ def test_format_page_text_includes_header() -> None:
     page = {
         "page_time": "2026-06-10T12:34:00+00:00",
         "page_entry_limit": 20,
-        "heard_count": 0,
+        "retained_callsign_count": 0,
+        "rows_iterated": 0,
         "entries": [],
     }
 

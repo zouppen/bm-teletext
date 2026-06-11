@@ -28,7 +28,8 @@ PageEntry = HeardEntry | DayEntry
 class PageData(TypedDict):
     page_time: str
     page_entry_limit: int
-    heard_count: int
+    retained_callsign_count: int
+    rows_iterated: int
     entries: list[PageEntry]
 
 
@@ -47,7 +48,8 @@ def create_page(page_time: datetime | None = None) -> PageData:
     return {
         "page_time": page_time.isoformat(),
         "page_entry_limit": PAGE_ENTRY_LIMIT,
-        "heard_count": 0,
+        "retained_callsign_count": 0,
+        "rows_iterated": 0,
         "entries": [],
     }
 
@@ -157,8 +159,10 @@ def build_page(
     page = create_page(page_time)
     entries_by_callsign: EntryByCallsign = {}
     days = {local_day_marker_time(datetime.fromisoformat(page["page_time"]))}
+    rows_iterated = 0
 
     for row in rows:
+        rows_iterated += 1
         addition = prepare_row_addition(
             entries_by_callsign,
             row,
@@ -189,5 +193,6 @@ def build_page(
     page["entries"] = page["entries"][:PAGE_ENTRY_LIMIT]
     if page["entries"] and page["entries"][-1]["type"] == "day":
         page["entries"].pop()
-    page["heard_count"] = len(heard_entries)
+    page["retained_callsign_count"] = len(heard_entries)
+    page["rows_iterated"] = rows_iterated
     return page
