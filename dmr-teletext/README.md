@@ -24,6 +24,8 @@ pip install -e '.[dev]'
 export DATABASE_URL='postgresql://user:password@localhost:5432/bm_teletext'
 dmr-teletext-page-data json
 dmr-teletext-page-data json --page-entry-limit 50
+dmr-teletext-page-data --page-time '2026-06-11 17:45' json
+dmr-teletext-page-data --rssi-repair-window-seconds 60 text
 dmr-teletext-page-data text
 ```
 
@@ -32,16 +34,12 @@ subcommand emits a temporary fixed-width table for teletext layout experiments.
 Only the `json` subcommand accepts `--page-entry-limit`; teletext output stays
 fixed to the page template limit.
 
-The page entry limit is a code constant because the final capacity depends on
-the teletext template.
-
-Optional configuration:
-
-- `DMR_TELETEXT_RSSI_REPAIR_WINDOW_SECONDS`: maximum age difference for
-  repairing missing RSSI/BER from a duplicate callsign row. Defaults to `300`.
-- `DMR_TELETEXT_PAGE_TIME`: optional PostgreSQL `timestamptz` value for
-  generating a historical page. When set, only rows with `received_at` before
-  this time are read, and the output JSON uses this value as `page_time`.
+Global options must be placed before the subcommand. `--page-time` accepts a
+PostgreSQL `timestamptz` value for generating a historical page. When set, only
+rows with `received_at` before this time are read, and output uses this value as
+`page_time`. `--rssi-repair-window-seconds` controls the maximum age difference
+for repairing missing RSSI/BER from a duplicate callsign row and defaults to
+`300`.
 
 ## Tests
 

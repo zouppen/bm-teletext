@@ -7,31 +7,6 @@ from dmr_teletext import main as main_module
 from dmr_teletext.page_data import DEFAULT_RSSI_REPAIR_WINDOW_SECONDS, PAGE_ENTRY_LIMIT
 
 
-def test_get_rssi_repair_window_seconds_uses_default(monkeypatch) -> None:
-    monkeypatch.delenv(main_module.RSSI_REPAIR_WINDOW_ENV, raising=False)
-
-    assert (
-        main_module.get_rssi_repair_window_seconds()
-        == DEFAULT_RSSI_REPAIR_WINDOW_SECONDS
-    )
-
-
-def test_get_rssi_repair_window_seconds_uses_env_value(monkeypatch) -> None:
-    monkeypatch.setenv(main_module.RSSI_REPAIR_WINDOW_ENV, "42")
-
-    assert main_module.get_rssi_repair_window_seconds() == 42
-
-
-@pytest.mark.parametrize("value", ["bad", "-1"])
-def test_get_rssi_repair_window_seconds_rejects_invalid_values(
-    monkeypatch, value: str
-) -> None:
-    monkeypatch.setenv(main_module.RSSI_REPAIR_WINDOW_ENV, value)
-
-    with pytest.raises(ValueError, match="must be a non-negative integer"):
-        main_module.get_rssi_repair_window_seconds()
-
-
 def test_parse_cli_options_rejects_missing_subcommand() -> None:
     with pytest.raises(ValueError, match="usage:"):
         main_module.parse_cli_options([])
@@ -41,10 +16,14 @@ def test_parse_cli_options_accepts_known_subcommands() -> None:
     assert main_module.parse_cli_options(["json"]) == main_module.CliOptions(
         output_format="json",
         page_entry_limit=PAGE_ENTRY_LIMIT,
+        page_time=None,
+        rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
     )
     assert main_module.parse_cli_options(["text"]) == main_module.CliOptions(
         output_format="text",
         page_entry_limit=PAGE_ENTRY_LIMIT,
+        page_time=None,
+        rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
     )
 
 
@@ -54,6 +33,25 @@ def test_parse_cli_options_accepts_json_page_entry_limit() -> None:
     ) == main_module.CliOptions(
         output_format="json",
         page_entry_limit=3,
+        page_time=None,
+        rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
+    )
+
+
+def test_parse_cli_options_accepts_global_options() -> None:
+    assert main_module.parse_cli_options(
+        [
+            "--page-time",
+            "2026-06-10 12:00:00+00",
+            "--rssi-repair-window-seconds",
+            "0",
+            "text",
+        ]
+    ) == main_module.CliOptions(
+        output_format="text",
+        page_entry_limit=PAGE_ENTRY_LIMIT,
+        page_time="2026-06-10 12:00:00+00",
+        rssi_repair_window_seconds=0,
     )
 
 
@@ -67,6 +65,9 @@ def test_parse_cli_options_accepts_json_page_entry_limit() -> None:
         ["json", "--page-entry-limit", "0"],
         ["json", "--page-entry-limit", "-1"],
         ["text", "--page-entry-limit", "3"],
+        ["--rssi-repair-window-seconds", "bad", "json"],
+        ["--rssi-repair-window-seconds", "-1", "json"],
+        ["json", "--rssi-repair-window-seconds", "42"],
     ],
 )
 def test_parse_cli_options_rejects_invalid_arguments(argv) -> None:
@@ -74,27 +75,18 @@ def test_parse_cli_options_rejects_invalid_arguments(argv) -> None:
         main_module.parse_cli_options(argv)
 
 
-def test_main_rejects_invalid_rssi_repair_window(monkeypatch, capsys) -> None:
-    monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
-    monkeypatch.setenv(main_module.RSSI_REPAIR_WINDOW_ENV, "bad")
-
-    assert main_module.main(["json"]) == 2
-
-    captured = capsys.readouterr()
-    assert "must be a non-negative integer" in captured.err
-
-
-def test_get_page_time_uses_current_time_by_default(monkeypatch) -> None:
-    monkeypatch.delenv(main_module.PAGE_TIME_ENV, raising=False)
-
+def test_resolve_cli_page_time_uses_current_time_by_default() -> None:
     before = datetime.now(timezone.utc)
-    page_time = main_module.get_page_time("postgresql://example/unused")
+    page_time = main_module.resolve_cli_page_time(
+        "postgresql://example/unused",
+        None,
+    )
     after = datetime.now(timezone.utc)
 
     assert before <= page_time <= after
 
 
-def test_get_page_time_resolves_env_value_with_postgresql(monkeypatch) -> None:
+def test_resolve_cli_page_time_resolves_value_with_postgresql(monkeypatch) -> None:
     resolved = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
     calls = []
 
@@ -102,29 +94,37 @@ def test_get_page_time_resolves_env_value_with_postgresql(monkeypatch) -> None:
         calls.append((database_url, value))
         return resolved
 
-    monkeypatch.setenv(main_module.PAGE_TIME_ENV, "2026-06-10 12:00:00+00")
     monkeypatch.setattr(main_module, "resolve_page_time", fake_resolve_page_time)
 
-    assert main_module.get_page_time("postgresql://example/unused") == resolved
+    assert main_module.resolve_cli_page_time(
+        "postgresql://example/unused",
+        "2026-06-10 12:00:00+00",
+    ) == resolved
     assert calls == [
         ("postgresql://example/unused", "2026-06-10 12:00:00+00")
     ]
 
 
-def test_get_page_time_rejects_invalid_env_value(monkeypatch) -> None:
+def test_resolve_cli_page_time_rejects_invalid_value(monkeypatch) -> None:
     def fake_resolve_page_time(database_url: str, value: str) -> datetime:
         raise ValueError("invalid PostgreSQL timestamptz value")
 
-    monkeypatch.setenv(main_module.PAGE_TIME_ENV, "bad")
     monkeypatch.setattr(main_module, "resolve_page_time", fake_resolve_page_time)
 
-    with pytest.raises(ValueError, match="must be a PostgreSQL timestamptz value"):
-        main_module.get_page_time("postgresql://example/unused")
+    with pytest.raises(
+        ValueError,
+        match="--page-time must be a PostgreSQL timestamptz value",
+    ):
+        main_module.resolve_cli_page_time("postgresql://example/unused", "bad")
 
 
 def test_main_passes_page_time_to_query_and_output(monkeypatch, capsys) -> None:
     page_time = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
     calls = []
+
+    def fake_resolve_page_time(database_url, value):
+        calls.append(("resolve", database_url, value))
+        return page_time
 
     def fake_iter_lastheard_rows(database_url, effective_page_time):
         calls.append(("iter", database_url, effective_page_time))
@@ -143,18 +143,31 @@ def test_main_passes_page_time_to_query_and_output(monkeypatch, capsys) -> None:
         }
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
-    monkeypatch.setattr(main_module, "get_page_time", lambda database_url: page_time)
+    monkeypatch.setattr(main_module, "resolve_page_time", fake_resolve_page_time)
     monkeypatch.setattr(main_module, "iter_lastheard_rows", fake_iter_lastheard_rows)
     monkeypatch.setattr(main_module, "build_page", fake_build_page)
 
-    assert main_module.main(["json"]) == 0
+    assert main_module.main(
+        [
+            "--page-time",
+            "2026-06-10 12:00:00+00",
+            "--rssi-repair-window-seconds",
+            "42",
+            "json",
+        ]
+    ) == 0
 
     assert calls == [
+        (
+            "resolve",
+            "postgresql://example/unused",
+            "2026-06-10 12:00:00+00",
+        ),
         ("iter", "postgresql://example/unused", page_time),
         (
             "build",
             [],
-            DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
+            42,
             page_time,
             PAGE_ENTRY_LIMIT,
         ),
@@ -163,25 +176,27 @@ def test_main_passes_page_time_to_query_and_output(monkeypatch, capsys) -> None:
 
 
 def test_main_rejects_invalid_page_time(monkeypatch, capsys) -> None:
-    def fake_get_page_time(database_url: str) -> datetime:
-        raise ValueError(
-            f"{main_module.PAGE_TIME_ENV} must be a PostgreSQL timestamptz value"
-        )
+    def fake_resolve_page_time(database_url: str, value: str) -> datetime:
+        raise ValueError("invalid PostgreSQL timestamptz value")
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
-    monkeypatch.setattr(main_module, "get_page_time", fake_get_page_time)
+    monkeypatch.setattr(main_module, "resolve_page_time", fake_resolve_page_time)
 
-    assert main_module.main(["json"]) == 2
+    assert main_module.main(["--page-time", "bad", "json"]) == 2
 
     captured = capsys.readouterr()
-    assert main_module.PAGE_TIME_ENV in captured.err
+    assert "--page-time" in captured.err
 
 
 def test_main_json_subcommand_emits_json(monkeypatch, capsys) -> None:
     page_time = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
-    monkeypatch.setattr(main_module, "get_page_time", lambda database_url: page_time)
+    monkeypatch.setattr(
+        main_module,
+        "resolve_cli_page_time",
+        lambda database_url, value: page_time,
+    )
     monkeypatch.setattr(
         main_module,
         "iter_lastheard_rows",
@@ -211,7 +226,7 @@ def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> Non
     calls = []
 
     def fake_build_page(rows, repair_window_seconds, page_time, page_entry_limit):
-        calls.append(page_entry_limit)
+        calls.append((repair_window_seconds, page_entry_limit))
         return {
             "page_time": page_time.isoformat(),
             "page_entry_limit": page_entry_limit,
@@ -234,7 +249,11 @@ def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> Non
         }
 
     monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
-    monkeypatch.setattr(main_module, "get_page_time", lambda database_url: page_time)
+    monkeypatch.setattr(
+        main_module,
+        "resolve_cli_page_time",
+        lambda database_url, value: page_time,
+    )
     monkeypatch.setattr(
         main_module,
         "iter_lastheard_rows",
@@ -246,10 +265,10 @@ def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> Non
         fake_build_page,
     )
 
-    assert main_module.main(["text"]) == 0
+    assert main_module.main(["--rssi-repair-window-seconds", "0", "text"]) == 0
 
     output = capsys.readouterr().out.splitlines()
-    assert calls == [PAGE_ENTRY_LIMIT]
+    assert calls == [(0, PAGE_ENTRY_LIMIT)]
     assert output[0] == "AIKA  KUTSU    TOISTIN            RSSI B"
     assert output[1].endswith("-109 *")
     assert all(len(line) == 40 for line in output)
