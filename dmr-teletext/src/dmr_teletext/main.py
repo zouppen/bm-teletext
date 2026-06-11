@@ -1,18 +1,35 @@
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
+from dataclasses import dataclass
 from datetime import datetime, timezone
 
 from dmr_teletext.db import iter_lastheard_rows, resolve_page_time
-from dmr_teletext.page_data import DEFAULT_RSSI_REPAIR_WINDOW_SECONDS, build_page
+from dmr_teletext.page_data import (
+    DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
+    PAGE_ENTRY_LIMIT,
+    build_page,
+)
 from dmr_teletext.text_format import format_page_text
 
 
 RSSI_REPAIR_WINDOW_ENV = "DMR_TELETEXT_RSSI_REPAIR_WINDOW_SECONDS"
 PAGE_TIME_ENV = "DMR_TELETEXT_PAGE_TIME"
-OUTPUT_FORMATS = {"json", "text"}
+
+
+@dataclass(frozen=True)
+class CliOptions:
+    output_format: str
+    page_entry_limit: int
+
+
+class CliArgumentParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        usage = self.format_usage().strip()
+        raise ValueError(f"{usage}\n{self.prog}: error: {message}")
 
 
 def get_rssi_repair_window_seconds() -> int:
@@ -41,18 +58,45 @@ def get_page_time(database_url: str) -> datetime:
         raise ValueError(f"{PAGE_TIME_ENV} must be a PostgreSQL timestamptz value") from exc
 
 
-def get_output_format(argv: list[str]) -> str:
-    if not argv:
-        return "json"
-    if len(argv) == 1 and argv[0] in OUTPUT_FORMATS:
-        return argv[0]
-    raise ValueError("usage: dmr-teletext-page-data [json|text]")
+def positive_int(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return parsed
+
+
+def create_argument_parser() -> argparse.ArgumentParser:
+    parser = CliArgumentParser(prog="dmr-teletext-page-data")
+    subparsers = parser.add_subparsers(dest="output_format", required=True)
+
+    json_parser = subparsers.add_parser("json")
+    json_parser.add_argument(
+        "--page-entry-limit",
+        type=positive_int,
+        default=PAGE_ENTRY_LIMIT,
+    )
+
+    text_parser = subparsers.add_parser("text")
+    text_parser.set_defaults(page_entry_limit=PAGE_ENTRY_LIMIT)
+
+    return parser
+
+
+def parse_cli_options(argv: list[str]) -> CliOptions:
+    namespace = create_argument_parser().parse_args(argv)
+    return CliOptions(
+        output_format=namespace.output_format,
+        page_entry_limit=namespace.page_entry_limit,
+    )
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = sys.argv[1:] if argv is None else argv
     try:
-        output_format = get_output_format(argv)
+        options = parse_cli_options(argv)
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 2
@@ -73,8 +117,13 @@ def main(argv: list[str] | None = None) -> int:
         iter_lastheard_rows(database_url, page_time),
         repair_window_seconds=repair_window_seconds,
         page_time=page_time,
+        page_entry_limit=(
+            options.page_entry_limit
+            if options.output_format == "json"
+            else PAGE_ENTRY_LIMIT
+        ),
     )
-    if output_format == "text":
+    if options.output_format == "text":
         print(format_page_text(page))
     else:
         print(json.dumps(page, indent=2, ensure_ascii=False))

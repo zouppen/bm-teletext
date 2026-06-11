@@ -43,11 +43,14 @@ class LastHeardRow:
     payload: Mapping[str, Any]
 
 
-def create_page(page_time: datetime | None = None) -> PageData:
+def create_page(
+    page_time: datetime | None = None,
+    page_entry_limit: int = PAGE_ENTRY_LIMIT,
+) -> PageData:
     page_time = page_time or datetime.now(timezone.utc)
     return {
         "page_time": page_time.isoformat(),
-        "page_entry_limit": PAGE_ENTRY_LIMIT,
+        "page_entry_limit": page_entry_limit,
         "retained_callsign_count": 0,
         "rows_iterated": 0,
         "entries": [],
@@ -155,8 +158,9 @@ def build_page(
     rows: Iterator[LastHeardRow],
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
     page_time: datetime | None = None,
+    page_entry_limit: int = PAGE_ENTRY_LIMIT,
 ) -> PageData:
-    page = create_page(page_time)
+    page = create_page(page_time, page_entry_limit)
     entries_by_callsign: EntryByCallsign = {}
     days = {local_day_marker_time(datetime.fromisoformat(page["page_time"]))}
     rows_iterated = 0
@@ -173,7 +177,7 @@ def build_page(
             entry_time = datetime.fromisoformat(entry["time"])
             days.add(local_day_marker_time(entry_time))
             entries_by_callsign[callsign] = (entry_time, entry)
-        if timeline_entry_count(entries_by_callsign, days) >= PAGE_ENTRY_LIMIT:
+        if timeline_entry_count(entries_by_callsign, days) >= page_entry_limit:
             break
 
     heard_entries: list[PageEntry] = [
@@ -190,7 +194,7 @@ def build_page(
     )
     if page["entries"] and page["entries"][0]["type"] == "day":
         page["entries"].pop(0)
-    page["entries"] = page["entries"][:PAGE_ENTRY_LIMIT]
+    page["entries"] = page["entries"][:page_entry_limit]
     if page["entries"] and page["entries"][-1]["type"] == "day":
         page["entries"].pop()
     page["retained_callsign_count"] = len(heard_entries)

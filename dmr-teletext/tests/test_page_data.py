@@ -497,6 +497,26 @@ def test_build_page_single_day_limit_ignores_dropped_day_marker(set_timezone) ->
     assert day_entries(page) == []
 
 
+def test_build_page_accepts_custom_page_entry_limit() -> None:
+    rows = (
+        LastHeardRow(
+            received_at=datetime(2026, 6, 10, 12, minute, tzinfo=timezone.utc),
+            payload={"SourceCall": f"OH2{minute:03d}", "ContextID": "244200"},
+        )
+        for minute in range(PAGE_ENTRY_LIMIT)
+    )
+
+    page = build_page(
+        rows,
+        page_time=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+        page_entry_limit=3,
+    )
+
+    assert page["page_entry_limit"] == 3
+    assert len(page["entries"]) == 3
+    assert len(heard_entries(page)) == 3
+
+
 def test_build_page_counts_printed_day_markers_against_limit(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
     rows = (
