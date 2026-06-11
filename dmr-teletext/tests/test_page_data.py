@@ -58,8 +58,9 @@ def apply_row_addition(
         repair_window_seconds,
     )
     if addition is not None:
-        days.add(addition.day)
-        entries_by_callsign[addition.callsign] = (row.received_at, addition.entry)
+        entry_time = datetime.fromisoformat(addition.entry["time"])
+        days.add(local_day_marker_time(entry_time))
+        entries_by_callsign[addition.callsign] = (entry_time, addition.entry)
     return addition
 
 
@@ -231,7 +232,6 @@ def test_prepare_row_addition_adds_day_for_new_callsign(set_timezone) -> None:
     assert addition is not None
     assert addition.callsign == "OH2DPN"
     assert addition.entry["payload"]["ContextID"] == "244200"
-    assert addition.day.isoformat() == "2026-06-11T00:00:00+03:00"
     assert {day.isoformat() for day in days} == {"2026-06-11T00:00:00+03:00"}
 
 
@@ -248,7 +248,7 @@ def test_prepare_row_addition_returns_data_without_storing_it(set_timezone) -> N
     assert addition is not None
     assert addition.callsign == "OH2DPN"
     assert addition.entry["payload"]["ContextID"] == "244200"
-    assert addition.day.isoformat() == "2026-06-11T00:00:00+03:00"
+    assert not hasattr(addition, "day")
     assert entries_by_callsign == {}
 
 
@@ -716,3 +716,50 @@ def test_build_page_preserves_ordering_after_rssi_repair() -> None:
     ]
     assert heard[0]["time"] == "2026-06-10T12:00:00+00:00"
     assert heard[0]["payload"].get("RSSI") == -112.3
+
+
+def test_build_page_uses_selected_entry_time_for_repaired_day_marker(
+    set_timezone,
+) -> None:
+    set_timezone("Europe/Helsinki")
+    rows = iter(
+        [
+            LastHeardRow(
+                received_at=datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc),
+                payload={"SourceCall": "OH2DPN", "ContextID": 244200, "RSSI": 0},
+            ),
+            LastHeardRow(
+                received_at=datetime(2026, 6, 9, 20, 58, tzinfo=timezone.utc),
+                payload={
+                    "SourceCall": "OH2DPN",
+                    "ContextID": 244200,
+                    "RSSI": -112.3,
+                    "BER": "0.1",
+                },
+            ),
+        ]
+    )
+
+    page = build_page(
+        rows,
+        page_time=datetime(2026, 6, 11, 12, 0, tzinfo=timezone.utc),
+        repair_window_seconds=86_400,
+    )
+
+    assert [entry["time"] for entry in day_entries(page)] == [
+        "2026-06-11T00:00:00+03:00"
+    ]
+    heard = heard_entries(page)
+    assert heard == [
+        {
+            "type": "heard",
+            "time": "2026-06-10T12:00:00+00:00",
+            "payload": {
+                "SourceCall": "OH2DPN",
+                "ContextID": 244200,
+                "RSSI": -112.3,
+                "BER": "0.1",
+            },
+            "repaired": True,
+        }
+    ]

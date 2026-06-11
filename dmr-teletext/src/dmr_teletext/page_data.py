@@ -46,7 +46,6 @@ class LastHeardRow:
 class RowAddition:
     callsign: str
     entry: HeardEntry
-    day: datetime
 
 
 def create_page(page_time: datetime | None = None) -> PageData:
@@ -151,13 +150,9 @@ def prepare_row_addition(
         )
         if repaired_entry is None:
             return None
-        repaired_day = local_day_marker_time(
-            datetime.fromisoformat(repaired_entry["time"])
-        )
-        return RowAddition(callsign=callsign, entry=repaired_entry, day=repaired_day)
+        return RowAddition(callsign=callsign, entry=repaired_entry)
 
-    row_day = local_day_marker_time(row.received_at)
-    return RowAddition(callsign=callsign, entry=entry, day=row_day)
+    return RowAddition(callsign=callsign, entry=entry)
 
 
 def build_page(
@@ -176,8 +171,9 @@ def build_page(
             repair_window_seconds,
         )
         if addition is not None:
-            days.add(addition.day)
-            entries_by_callsign[addition.callsign] = (row.received_at, addition.entry)
+            entry_time = datetime.fromisoformat(addition.entry["time"])
+            days.add(local_day_marker_time(entry_time))
+            entries_by_callsign[addition.callsign] = (entry_time, addition.entry)
         if timeline_entry_count(entries_by_callsign, days) >= PAGE_ENTRY_LIMIT:
             break
 
