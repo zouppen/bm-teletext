@@ -7,6 +7,7 @@ from dmr_teletext.text_format import (
     LINE_WIDTH,
     format_entry,
     format_header,
+    format_page_ep1,
     format_page_text,
     format_rssi,
 )
@@ -112,6 +113,23 @@ def test_format_heard_entry_aligns_bit_error_marker_with_rssi(set_timezone) -> N
     assert with_rssi == "12:34 OH2DPN   OH2DMRH Pasila     -109 *"
     assert without_rssi == "12:34 OH2DPN   OH2DMRH Pasila          *"
     assert with_rssi.index("*") == without_rssi.index("*") == LINE_WIDTH - 1
+
+
+def test_format_page_ep1_colours_rssi_by_threshold(set_timezone) -> None:
+    set_timezone("UTC")
+    page = {
+        "page_time": "2026-06-10T12:34:00+00:00",
+        "page_entry_limit": 1,
+        "retained_callsign_count": 1,
+        "rows_iterated": 1,
+        "entries": [heard_entry(rssi=-89)],
+    }
+
+    green_output = format_page_ep1(page, subpage="11/12", rssi_yellow_threshold=-90)
+    yellow_output = format_page_ep1(page, subpage="11/12", rssi_yellow_threshold=-88)
+
+    assert b"\x02 -89\x01" in green_output
+    assert b"\x03 -89\x01" in yellow_output
 
 
 def test_format_heard_entry_handles_missing_repeater(set_timezone) -> None:

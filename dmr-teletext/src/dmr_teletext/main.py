@@ -13,7 +13,7 @@ from dmr_teletext.page_data import (
     PAGE_ENTRY_LIMIT,
     build_page,
 )
-from dmr_teletext.text_format import format_page_text
+from dmr_teletext.text_format import format_page_ep1
 
 
 TELETEXT_PAGE_ENTRY_LIMIT = 16
@@ -25,6 +25,8 @@ class CliOptions:
     page_entry_limit: int
     page_time: str | None
     rssi_repair_window_seconds: int
+    subpage: str | None
+    rssi_yellow_threshold: int
 
 
 class CliArgumentParser(argparse.ArgumentParser):
@@ -53,6 +55,12 @@ def non_negative_int(value: str) -> int:
     return parsed
 
 
+def subpage_text(value: str) -> str:
+    if len(value) != 5:
+        raise argparse.ArgumentTypeError("must be exactly 5 characters")
+    return value
+
+
 def create_argument_parser() -> argparse.ArgumentParser:
     parser = CliArgumentParser(prog="dmr-teletext-page-data")
     parser.add_argument("--page-time")
@@ -76,6 +84,12 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
     teletext_parser = subparsers.add_parser("teletext")
     teletext_parser.set_defaults(page_entry_limit=TELETEXT_PAGE_ENTRY_LIMIT)
+    teletext_parser.add_argument("--subpage", type=subpage_text, required=True)
+    teletext_parser.add_argument(
+        "--rssi-yellow-threshold",
+        type=int,
+        default=-90,
+    )
 
     return parser
 
@@ -87,6 +101,8 @@ def parse_cli_options(argv: list[str]) -> CliOptions:
         page_entry_limit=namespace.page_entry_limit,
         page_time=namespace.page_time,
         rssi_repair_window_seconds=namespace.rssi_repair_window_seconds,
+        subpage=getattr(namespace, "subpage", None),
+        rssi_yellow_threshold=getattr(namespace, "rssi_yellow_threshold", -90),
     )
 
 
@@ -126,7 +142,13 @@ def main(argv: list[str] | None = None) -> int:
         page_entry_limit=options.page_entry_limit,
     )
     if options.output_format == "teletext":
-        print(format_page_text(page))
+        sys.stdout.buffer.write(
+            format_page_ep1(
+                page,
+                subpage=options.subpage or "",
+                rssi_yellow_threshold=options.rssi_yellow_threshold,
+            )
+        )
     else:
         print(json.dumps(page, indent=2, ensure_ascii=False))
     return 0

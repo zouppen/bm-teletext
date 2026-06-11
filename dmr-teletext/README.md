@@ -3,11 +3,9 @@
 This tool reads collected BrandMeister Last Heard data from PostgreSQL and
 builds the first-stage JSON data structure for a teletext page.
 
-It does not render teletext yet. The current output is structured JSON so the
-row processing and future squashing logic can be developed independently from
-page formatting. The JSON currently emits typed timeline entries with heard
-rows containing copied BrandMeister payloads, plus day markers for testing
-day-separator logic.
+The `json` output emits typed timeline entries with heard rows containing
+copied BrandMeister payloads, plus day markers for testing day-separator logic.
+The `teletext` output renders an EP1 teletext page from that page data.
 
 ## Setup
 
@@ -25,14 +23,15 @@ export DATABASE_URL='postgresql://user:password@localhost:5432/bm_teletext'
 dmr-teletext-page-data json
 dmr-teletext-page-data json --page-entry-limit 50
 dmr-teletext-page-data --page-time '2026-06-11 17:45' json
-dmr-teletext-page-data --rssi-repair-window-seconds 60 teletext
-dmr-teletext-page-data teletext
+dmr-teletext-page-data --rssi-repair-window-seconds 60 teletext --subpage 11/12
+dmr-teletext-page-data teletext --subpage 11/12 --rssi-yellow-threshold -90
 ```
 
 The `json` subcommand emits structured JSON for debugging. The `teletext`
-subcommand emits a temporary fixed-width table for teletext layout experiments
-with 16 timeline entries. Only the `json` subcommand accepts
-`--page-entry-limit`.
+subcommand emits an EP1 teletext page with 16 timeline entries. Only the `json`
+subcommand accepts `--page-entry-limit`. The `teletext` subcommand requires a
+5-character `--subpage` value and accepts `--rssi-yellow-threshold`, which
+defaults to `-90`.
 
 Global options must be placed before the subcommand. `--page-time` accepts a
 PostgreSQL `timestamptz` value for generating a historical page. When set, only
