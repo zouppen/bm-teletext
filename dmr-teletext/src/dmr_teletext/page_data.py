@@ -47,6 +47,13 @@ class LastHeardRow:
     payload: Mapping[str, Any]
 
 
+@dataclass(frozen=True)
+class RowAddition:
+    callsign: str
+    entry: HeardEntry
+    day: datetime
+
+
 def create_page(page_time: datetime | None = None) -> PageData:
     page_time = page_time or datetime.now(timezone.utc)
     return {
@@ -128,16 +135,15 @@ def repair_signal_quality(
     stored_entry["be"] = duplicate_entry["be"]
 
 
-def process_row(
+def prepare_row_addition(
     entries_by_callsign: EntryByCallsign,
-    days: DaySet,
     row: LastHeardRow,
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
-) -> None:
+) -> RowAddition | None:
     entry = payload_to_entry(row.received_at, row.payload)
     callsign = entry["callsign"]
     if not callsign:
-        return
+        return None
     if callsign in entries_by_callsign:
         stored_received_at, stored_entry = entries_by_callsign[callsign]
         repair_signal_quality(
@@ -147,11 +153,10 @@ def process_row(
             entry,
             repair_window_seconds,
         )
-        return
+        return None
 
     row_day = local_day_marker_time(row.received_at)
-    days.add(row_day)
-    entries_by_callsign[callsign] = (row.received_at, entry)
+    return RowAddition(callsign=callsign, entry=entry, day=row_day)
 
 
 def build_page(
@@ -164,7 +169,14 @@ def build_page(
     days = {local_day_marker_time(datetime.fromisoformat(page["page_time"]))}
 
     for row in rows:
-        process_row(entries_by_callsign, days, row, repair_window_seconds)
+        addition = prepare_row_addition(
+            entries_by_callsign,
+            row,
+            repair_window_seconds,
+        )
+        if addition is not None:
+            days.add(addition.day)
+            entries_by_callsign[addition.callsign] = (row.received_at, addition.entry)
         if timeline_entry_count(entries_by_callsign, days) >= PAGE_ENTRY_LIMIT:
             break
 
