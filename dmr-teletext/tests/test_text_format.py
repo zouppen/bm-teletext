@@ -112,12 +112,22 @@ def test_format_heard_entry_handles_missing_repeater(set_timezone) -> None:
     assert len(line) == LINE_WIDTH
 
 
-def test_format_day_entry_uses_local_date(set_timezone) -> None:
+def test_format_day_entry_uses_previous_local_date(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
 
     line = format_entry({"type": "day", "time": "2026-06-11T00:00:00+03:00"})
 
-    assert line == "2026-06-11"
+    assert line == "2026-06-10"
+
+
+def test_format_day_entry_uses_previous_date_after_local_conversion(
+    set_timezone,
+) -> None:
+    set_timezone("Europe/Helsinki")
+
+    line = format_entry({"type": "day", "time": "2026-06-10T21:00:00+00:00"})
+
+    assert line == "2026-06-10"
 
 
 def test_format_page_text_includes_header() -> None:

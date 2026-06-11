@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from dmr_teletext.page_data import PageData, PageEntry
@@ -33,7 +33,7 @@ def format_entry(entry: PageEntry) -> str:
 
 
 def format_day(value: str) -> str:
-    day = parse_local_time(value).date().isoformat()
+    day = (parse_local_time(value) - timedelta(days=1)).date().isoformat()
     return day[:LINE_WIDTH]
 
 
