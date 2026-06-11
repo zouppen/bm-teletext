@@ -42,12 +42,6 @@ class LastHeardRow:
     payload: Mapping[str, Any]
 
 
-@dataclass(frozen=True)
-class RowAddition:
-    callsign: str
-    entry: HeardEntry
-
-
 def create_page(page_time: datetime | None = None) -> PageData:
     page_time = page_time or datetime.now(timezone.utc)
     return {
@@ -134,7 +128,7 @@ def prepare_row_addition(
     entries_by_callsign: EntryByCallsign,
     row: LastHeardRow,
     repair_window_seconds: int = DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
-) -> RowAddition | None:
+) -> tuple[str, HeardEntry] | None:
     entry = row_to_heard_entry(row)
     callsign = payload_text(entry["payload"], "SourceCall")
     if not callsign:
@@ -150,9 +144,9 @@ def prepare_row_addition(
         )
         if repaired_entry is None:
             return None
-        return RowAddition(callsign=callsign, entry=repaired_entry)
+        return callsign, repaired_entry
 
-    return RowAddition(callsign=callsign, entry=entry)
+    return callsign, entry
 
 
 def build_page(
@@ -171,9 +165,10 @@ def build_page(
             repair_window_seconds,
         )
         if addition is not None:
-            entry_time = datetime.fromisoformat(addition.entry["time"])
+            callsign, entry = addition
+            entry_time = datetime.fromisoformat(entry["time"])
             days.add(local_day_marker_time(entry_time))
-            entries_by_callsign[addition.callsign] = (entry_time, addition.entry)
+            entries_by_callsign[callsign] = (entry_time, entry)
         if timeline_entry_count(entries_by_callsign, days) >= PAGE_ENTRY_LIMIT:
             break
 

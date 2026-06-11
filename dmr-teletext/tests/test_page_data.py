@@ -58,9 +58,10 @@ def apply_row_addition(
         repair_window_seconds,
     )
     if addition is not None:
-        entry_time = datetime.fromisoformat(addition.entry["time"])
+        callsign, entry = addition
+        entry_time = datetime.fromisoformat(entry["time"])
         days.add(local_day_marker_time(entry_time))
-        entries_by_callsign[addition.callsign] = (entry_time, addition.entry)
+        entries_by_callsign[callsign] = (entry_time, entry)
     return addition
 
 
@@ -230,8 +231,9 @@ def test_prepare_row_addition_adds_day_for_new_callsign(set_timezone) -> None:
     addition = apply_row_addition(entries_by_callsign, days, row)
 
     assert addition is not None
-    assert addition.callsign == "OH2DPN"
-    assert addition.entry["payload"]["ContextID"] == "244200"
+    callsign, entry = addition
+    assert callsign == "OH2DPN"
+    assert entry["payload"]["ContextID"] == "244200"
     assert {day.isoformat() for day in days} == {"2026-06-11T00:00:00+03:00"}
 
 
@@ -246,9 +248,9 @@ def test_prepare_row_addition_returns_data_without_storing_it(set_timezone) -> N
     addition = prepare_row_addition(entries_by_callsign, row)
 
     assert addition is not None
-    assert addition.callsign == "OH2DPN"
-    assert addition.entry["payload"]["ContextID"] == "244200"
-    assert not hasattr(addition, "day")
+    callsign, entry = addition
+    assert callsign == "OH2DPN"
+    assert entry["payload"]["ContextID"] == "244200"
     assert entries_by_callsign == {}
 
 
