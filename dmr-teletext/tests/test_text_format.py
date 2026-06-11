@@ -90,7 +90,7 @@ def test_format_heard_entry_truncates_long_callsign(set_timezone) -> None:
 
     line = format_entry(heard_entry(callsign="OH2VERYLONG"))
 
-    assert line.startswith("12:34 OH2VERYL ")
+    assert line.startswith("12:34 OH2VERY> ")
     assert len(line) == LINE_WIDTH
 
 
@@ -130,6 +130,22 @@ def test_format_page_ep1_colours_rssi_by_threshold(set_timezone) -> None:
 
     assert b"\x02 -89\x01" in green_output
     assert b"\x03 -89\x01" in yellow_output
+
+
+def test_format_page_ep1_marks_truncated_long_callsign(set_timezone) -> None:
+    set_timezone("UTC")
+    page = {
+        "page_time": "2026-06-10T12:34:00+00:00",
+        "page_entry_limit": 1,
+        "retained_callsign_count": 1,
+        "rows_iterated": 1,
+        "entries": [heard_entry(callsign="OH2VERYLONG")],
+    }
+
+    output = format_page_ep1(page, subpage="11/12")
+
+    assert b"OH2VERY>" in output
+    assert b"OH2VERYL" not in output
 
 
 def test_format_heard_entry_handles_missing_repeater(set_timezone) -> None:

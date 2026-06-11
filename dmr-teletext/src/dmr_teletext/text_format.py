@@ -111,9 +111,10 @@ def format_columns(
     rssi: str,
     be: str,
 ) -> str:
+    callsign = truncate_with_marker(callsign, CALLSIGN_WIDTH)
     line = (
         f"{truncate(time_text, TIME_WIDTH):<{TIME_WIDTH}} "
-        f"{truncate(callsign, CALLSIGN_WIDTH):<{CALLSIGN_WIDTH}} "
+        f"{callsign:<{CALLSIGN_WIDTH}} "
         f"{truncate(repeater, TEXT_REPEATER_WIDTH):<{TEXT_REPEATER_WIDTH}} "
         f"{truncate(rssi, RSSI_WIDTH):>{RSSI_WIDTH}} "
         f"{truncate(be, BE_WIDTH):<{BE_WIDTH}}"
@@ -146,7 +147,11 @@ def format_ep1_heard(entry: HeardEntry, rssi_yellow_threshold: int) -> bytes:
         b" "
         + time_text
         + b"\x06"
-        + encode_teletext(heard_callsign(entry) or "", CALLSIGN_WIDTH, align="<")
+        + encode_teletext(
+            truncate_with_marker(heard_callsign(entry) or "", CALLSIGN_WIDTH),
+            CALLSIGN_WIDTH,
+            align="<",
+        )
         + b"\x07"
         + encode_teletext(heard_repeater(entry) or "", EP1_REPEATER_WIDTH, align="<")
         + rssi_field
@@ -211,3 +216,9 @@ def parse_local_time(value: str) -> datetime:
 
 def truncate(value: str, width: int) -> str:
     return value[:width]
+
+
+def truncate_with_marker(value: str, width: int) -> str:
+    if len(value) <= width:
+        return value
+    return value[: width - 1] + ">"
