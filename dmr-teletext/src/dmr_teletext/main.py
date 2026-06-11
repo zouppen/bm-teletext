@@ -6,6 +6,7 @@ import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 
 from dmr_teletext.db import iter_lastheard_rows, resolve_page_time
 from dmr_teletext.page_data import (
@@ -27,6 +28,7 @@ class CliOptions:
     rssi_repair_window_seconds: int
     subpage: str | None
     rssi_yellow_threshold: int
+    output_file: str | None
 
 
 class CliArgumentParser(argparse.ArgumentParser):
@@ -90,6 +92,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
         type=int,
         default=-90,
     )
+    teletext_parser.add_argument("output_file")
 
     return parser
 
@@ -103,6 +106,7 @@ def parse_cli_options(argv: list[str]) -> CliOptions:
         rssi_repair_window_seconds=namespace.rssi_repair_window_seconds,
         subpage=getattr(namespace, "subpage", None),
         rssi_yellow_threshold=getattr(namespace, "rssi_yellow_threshold", -90),
+        output_file=getattr(namespace, "output_file", None),
     )
 
 
@@ -142,7 +146,7 @@ def main(argv: list[str] | None = None) -> int:
         page_entry_limit=options.page_entry_limit,
     )
     if options.output_format == "teletext":
-        sys.stdout.buffer.write(
+        Path(options.output_file or "").write_bytes(
             format_page_ep1(
                 page,
                 subpage=options.subpage or "",

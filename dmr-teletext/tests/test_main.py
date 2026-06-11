@@ -47,9 +47,10 @@ def test_parse_cli_options_accepts_known_subcommands() -> None:
         rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
         subpage=None,
         rssi_yellow_threshold=-90,
+        output_file=None,
     )
     assert main_module.parse_cli_options(
-        ["teletext", "--subpage", "11/12"]
+        ["teletext", "--subpage", "11/12", "output.ep1"]
     ) == main_module.CliOptions(
         output_format="teletext",
         page_entry_limit=main_module.TELETEXT_PAGE_ENTRY_LIMIT,
@@ -57,6 +58,7 @@ def test_parse_cli_options_accepts_known_subcommands() -> None:
         rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
         subpage="11/12",
         rssi_yellow_threshold=-90,
+        output_file="output.ep1",
     )
 
 
@@ -70,6 +72,7 @@ def test_parse_cli_options_accepts_json_page_entry_limit() -> None:
         rssi_repair_window_seconds=DEFAULT_RSSI_REPAIR_WINDOW_SECONDS,
         subpage=None,
         rssi_yellow_threshold=-90,
+        output_file=None,
     )
 
 
@@ -85,6 +88,7 @@ def test_parse_cli_options_accepts_global_options() -> None:
             "11/12",
             "--rssi-yellow-threshold",
             "-95",
+            "output.ep1",
         ]
     ) == main_module.CliOptions(
         output_format="teletext",
@@ -93,6 +97,7 @@ def test_parse_cli_options_accepts_global_options() -> None:
         rssi_repair_window_seconds=0,
         subpage="11/12",
         rssi_yellow_threshold=-95,
+        output_file="output.ep1",
     )
 
 
@@ -110,9 +115,11 @@ def test_parse_cli_options_accepts_global_options() -> None:
         ["teletext"],
         ["teletext", "--subpage", "1234"],
         ["teletext", "--subpage", "123456"],
+        ["teletext", "--subpage", "11/12"],
         ["--rssi-repair-window-seconds", "bad", "json"],
         ["--rssi-repair-window-seconds", "-1", "json"],
         ["json", "--rssi-repair-window-seconds", "42"],
+        ["json", "output.ep1"],
         ["json", "--subpage", "11/12"],
         ["json", "--rssi-yellow-threshold", "-95"],
         ["text"],
@@ -269,8 +276,13 @@ def test_main_json_subcommand_emits_json(monkeypatch, capsys) -> None:
     assert page["page_entry_limit"] == 3
 
 
-def test_main_teletext_subcommand_emits_ep1(monkeypatch, capsysbinary) -> None:
+def test_main_teletext_subcommand_writes_ep1_file(
+    monkeypatch,
+    capsysbinary,
+    tmp_path,
+) -> None:
     page_time = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+    output_file = tmp_path / "page.ep1"
     calls = []
 
     def fake_build_page(rows, repair_window_seconds, page_time, page_entry_limit):
@@ -320,22 +332,25 @@ def test_main_teletext_subcommand_emits_ep1(monkeypatch, capsysbinary) -> None:
             "teletext",
             "--subpage",
             "11/12",
+            str(output_file),
         ]
     ) == 0
 
-    output = capsysbinary.readouterr().out
+    output = output_file.read_bytes()
     assert calls == [(0, main_module.TELETEXT_PAGE_ENTRY_LIMIT)]
+    assert capsysbinary.readouterr().out == b""
     assert output.startswith(b"\xfe\x01\x18\x00\x00\x00")
     assert b"OH2DPN" in output
 
 
 def test_main_teletext_subcommand_matches_ep1_fixture(
     monkeypatch,
-    capsysbinary,
     set_timezone,
+    tmp_path,
 ) -> None:
     set_timezone("Europe/Helsinki")
     fixture = Path(__file__).with_name("fixtures") / "dmr-example.ep1"
+    output_file = tmp_path / "fixture.ep1"
     page_time = datetime(
         2026,
         6,
@@ -364,10 +379,11 @@ def test_main_teletext_subcommand_matches_ep1_fixture(
             "teletext",
             "--subpage",
             "11/12",
+            str(output_file),
         ]
     ) == 0
 
-    assert capsysbinary.readouterr().out == fixture.read_bytes()
+    assert output_file.read_bytes() == fixture.read_bytes()
 
 
 def ep1_fixture_rows() -> list[LastHeardRow]:
