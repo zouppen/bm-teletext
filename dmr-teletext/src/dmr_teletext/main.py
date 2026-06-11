@@ -7,10 +7,12 @@ from datetime import datetime, timezone
 
 from dmr_teletext.db import iter_lastheard_rows, resolve_page_time
 from dmr_teletext.page_data import DEFAULT_RSSI_REPAIR_WINDOW_SECONDS, build_page
+from dmr_teletext.text_format import format_page_text
 
 
 RSSI_REPAIR_WINDOW_ENV = "DMR_TELETEXT_RSSI_REPAIR_WINDOW_SECONDS"
 PAGE_TIME_ENV = "DMR_TELETEXT_PAGE_TIME"
+OUTPUT_FORMATS = {"json", "text"}
 
 
 def get_rssi_repair_window_seconds() -> int:
@@ -39,7 +41,22 @@ def get_page_time(database_url: str) -> datetime:
         raise ValueError(f"{PAGE_TIME_ENV} must be a PostgreSQL timestamptz value") from exc
 
 
-def main() -> int:
+def get_output_format(argv: list[str]) -> str:
+    if not argv:
+        return "json"
+    if len(argv) == 1 and argv[0] in OUTPUT_FORMATS:
+        return argv[0]
+    raise ValueError("usage: dmr-teletext-page-data [json|text]")
+
+
+def main(argv: list[str] | None = None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    try:
+        output_format = get_output_format(argv)
+    except ValueError as exc:
+        print(exc, file=sys.stderr)
+        return 2
+
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         print("DATABASE_URL is required", file=sys.stderr)
@@ -57,7 +74,10 @@ def main() -> int:
         repair_window_seconds=repair_window_seconds,
         page_time=page_time,
     )
-    print(json.dumps(page, indent=2, ensure_ascii=False))
+    if output_format == "text":
+        print(format_page_text(page))
+    else:
+        print(json.dumps(page, indent=2, ensure_ascii=False))
     return 0
 
 

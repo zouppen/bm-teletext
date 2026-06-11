@@ -32,11 +32,26 @@ def test_get_rssi_repair_window_seconds_rejects_invalid_values(
         main_module.get_rssi_repair_window_seconds()
 
 
+def test_get_output_format_defaults_to_json() -> None:
+    assert main_module.get_output_format([]) == "json"
+
+
+def test_get_output_format_accepts_known_subcommands() -> None:
+    assert main_module.get_output_format(["json"]) == "json"
+    assert main_module.get_output_format(["text"]) == "text"
+
+
+@pytest.mark.parametrize("argv", [["bad"], ["json", "extra"]])
+def test_get_output_format_rejects_unknown_subcommands(argv) -> None:
+    with pytest.raises(ValueError, match="usage:"):
+        main_module.get_output_format(argv)
+
+
 def test_main_rejects_invalid_rssi_repair_window(monkeypatch, capsys) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
     monkeypatch.setenv(main_module.RSSI_REPAIR_WINDOW_ENV, "bad")
 
-    assert main_module.main() == 2
+    assert main_module.main([]) == 2
 
     captured = capsys.readouterr()
     assert "must be a non-negative integer" in captured.err
@@ -102,7 +117,7 @@ def test_main_passes_page_time_to_query_and_output(monkeypatch, capsys) -> None:
     monkeypatch.setattr(main_module, "iter_lastheard_rows", fake_iter_lastheard_rows)
     monkeypatch.setattr(main_module, "build_page", fake_build_page)
 
-    assert main_module.main() == 0
+    assert main_module.main([]) == 0
 
     assert calls == [
         ("iter", "postgresql://example/unused", page_time),
@@ -120,7 +135,80 @@ def test_main_rejects_invalid_page_time(monkeypatch, capsys) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
     monkeypatch.setattr(main_module, "get_page_time", fake_get_page_time)
 
-    assert main_module.main() == 2
+    assert main_module.main([]) == 2
 
     captured = capsys.readouterr()
     assert main_module.PAGE_TIME_ENV in captured.err
+
+
+def test_main_json_subcommand_emits_json(monkeypatch, capsys) -> None:
+    page_time = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
+    monkeypatch.setattr(main_module, "get_page_time", lambda database_url: page_time)
+    monkeypatch.setattr(
+        main_module,
+        "iter_lastheard_rows",
+        lambda database_url, effective_page_time: iter(()),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "build_page",
+        lambda rows, repair_window_seconds, page_time: {
+            "page_time": page_time.isoformat(),
+            "page_entry_limit": 20,
+            "heard_count": 0,
+            "entries": [],
+        },
+    )
+
+    assert main_module.main(["json"]) == 0
+
+    assert json.loads(capsys.readouterr().out)["page_time"] == page_time.isoformat()
+
+
+def test_main_text_subcommand_emits_fixed_width_text(monkeypatch, capsys) -> None:
+    page_time = datetime(2026, 6, 10, 12, 0, tzinfo=timezone.utc)
+
+    monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
+    monkeypatch.setattr(main_module, "get_page_time", lambda database_url: page_time)
+    monkeypatch.setattr(
+        main_module,
+        "iter_lastheard_rows",
+        lambda database_url, effective_page_time: iter(()),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "build_page",
+        lambda rows, repair_window_seconds, page_time: {
+            "page_time": page_time.isoformat(),
+            "page_entry_limit": 20,
+            "heard_count": 1,
+            "entries": [
+                {
+                    "type": "heard",
+                    "time": "2026-06-10T12:34:00+00:00",
+                    "callsign": "OH2DPN",
+                    "name": None,
+                    "repeater_id": "244200",
+                    "repeater": "OH2DMRH Pasila",
+                    "tg": "2442",
+                    "rssi": -109.3,
+                    "be": True,
+                }
+            ],
+        },
+    )
+
+    assert main_module.main(["text"]) == 0
+
+    output = capsys.readouterr().out.splitlines()
+    assert output[0] == "AIKA  KUTSU    TOISTIN            RSSI B"
+    assert output[1].endswith("-109 *")
+    assert all(len(line) == 40 for line in output)
+
+
+def test_main_rejects_unknown_subcommand(capsys) -> None:
+    assert main_module.main(["bad"]) == 2
+
+    assert "usage:" in capsys.readouterr().err

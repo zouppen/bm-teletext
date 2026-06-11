@@ -22,7 +22,13 @@ pip install -e '.[dev]'
 ```sh
 export DATABASE_URL='postgresql://user:password@localhost:5432/bm_teletext'
 dmr-teletext-page-data
+dmr-teletext-page-data json
+dmr-teletext-page-data text
 ```
+
+The bare command and the `json` subcommand emit structured JSON for debugging.
+The `text` subcommand emits a temporary fixed-width table for teletext layout
+experiments.
 
 The page entry limit is a code constant because the final capacity depends on
 the teletext template.
