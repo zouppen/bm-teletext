@@ -65,7 +65,7 @@ def subpage_text(value: str) -> str:
 
 def create_argument_parser() -> argparse.ArgumentParser:
     parser = CliArgumentParser(prog="dmr-teletext-page-data")
-    parser.add_argument("--page-time")
+    parser.add_argument("--time", dest="page_time")
     parser.add_argument(
         "--rssi-repair-window-seconds",
         type=non_negative_int,
@@ -88,7 +88,8 @@ def create_argument_parser() -> argparse.ArgumentParser:
     teletext_parser.set_defaults(page_entry_limit=TELETEXT_PAGE_ENTRY_LIMIT)
     teletext_parser.add_argument("--subpage", type=subpage_text, required=True)
     teletext_parser.add_argument(
-        "--rssi-yellow-threshold",
+        "--rssi-yellow",
+        dest="rssi_yellow_threshold",
         type=int,
         default=-90,
     )
@@ -117,7 +118,7 @@ def resolve_cli_page_time(database_url: str, value: str | None) -> datetime:
     try:
         return resolve_page_time(database_url, value)
     except ValueError as exc:
-        raise ValueError("--page-time must be a PostgreSQL timestamptz value") from exc
+        raise ValueError("--time must be a PostgreSQL timestamptz value") from exc
 
 
 def main(argv: list[str] | None = None) -> int:

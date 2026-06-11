@@ -79,14 +79,14 @@ def test_parse_cli_options_accepts_json_page_entry_limit() -> None:
 def test_parse_cli_options_accepts_global_options() -> None:
     assert main_module.parse_cli_options(
         [
-            "--page-time",
+            "--time",
             "2026-06-10 12:00:00+00",
             "--rssi-repair-window-seconds",
             "0",
             "teletext",
             "--subpage",
             "11/12",
-            "--rssi-yellow-threshold",
+            "--rssi-yellow",
             "-95",
             "output.ep1",
         ]
@@ -116,12 +116,21 @@ def test_parse_cli_options_accepts_global_options() -> None:
         ["teletext", "--subpage", "1234"],
         ["teletext", "--subpage", "123456"],
         ["teletext", "--subpage", "11/12"],
+        ["--page-time", "2026-06-10 12:00:00+00", "json"],
         ["--rssi-repair-window-seconds", "bad", "json"],
         ["--rssi-repair-window-seconds", "-1", "json"],
         ["json", "--rssi-repair-window-seconds", "42"],
         ["json", "output.ep1"],
         ["json", "--subpage", "11/12"],
-        ["json", "--rssi-yellow-threshold", "-95"],
+        ["json", "--rssi-yellow", "-95"],
+        [
+            "teletext",
+            "--subpage",
+            "11/12",
+            "--rssi-yellow-threshold",
+            "-95",
+            "output.ep1",
+        ],
         ["text"],
     ],
 )
@@ -168,7 +177,7 @@ def test_resolve_cli_page_time_rejects_invalid_value(monkeypatch) -> None:
 
     with pytest.raises(
         ValueError,
-        match="--page-time must be a PostgreSQL timestamptz value",
+        match="--time must be a PostgreSQL timestamptz value",
     ):
         main_module.resolve_cli_page_time("postgresql://example/unused", "bad")
 
@@ -204,7 +213,7 @@ def test_main_passes_page_time_to_query_and_output(monkeypatch, capsys) -> None:
 
     assert main_module.main(
         [
-            "--page-time",
+            "--time",
             "2026-06-10 12:00:00+00",
             "--rssi-repair-window-seconds",
             "42",
@@ -237,10 +246,10 @@ def test_main_rejects_invalid_page_time(monkeypatch, capsys) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://example/unused")
     monkeypatch.setattr(main_module, "resolve_page_time", fake_resolve_page_time)
 
-    assert main_module.main(["--page-time", "bad", "json"]) == 2
+    assert main_module.main(["--time", "bad", "json"]) == 2
 
     captured = capsys.readouterr()
-    assert "--page-time" in captured.err
+    assert "--time" in captured.err
 
 
 def test_main_json_subcommand_emits_json(monkeypatch, capsys) -> None:
@@ -374,7 +383,7 @@ def test_main_teletext_subcommand_matches_ep1_fixture(
 
     assert main_module.main(
         [
-            "--page-time",
+            "--time",
             "2026-06-11 20:30:00+03",
             "teletext",
             "--subpage",

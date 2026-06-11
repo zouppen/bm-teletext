@@ -22,18 +22,18 @@ pip install -e '.[dev]'
 export DATABASE_URL='postgresql://user:password@localhost:5432/bm_teletext'
 dmr-teletext-page-data json
 dmr-teletext-page-data json --page-entry-limit 50
-dmr-teletext-page-data --page-time '2026-06-11 17:45' json
+dmr-teletext-page-data --time '2026-06-11 17:45' json
 dmr-teletext-page-data --rssi-repair-window-seconds 60 teletext --subpage 11/12 page.ep1
-dmr-teletext-page-data teletext --subpage 11/12 --rssi-yellow-threshold -90 page.ep1
+dmr-teletext-page-data teletext --subpage 11/12 --rssi-yellow -90 page.ep1
 ```
 
 The `json` subcommand emits structured JSON for debugging. The `teletext`
 subcommand emits an EP1 teletext page with 16 timeline entries. Only the `json`
 subcommand accepts `--page-entry-limit`. The `teletext` subcommand requires a
-5-character `--subpage` value, accepts `--rssi-yellow-threshold`, which
+5-character `--subpage` value, accepts `--rssi-yellow`, which
 defaults to `-90`, and writes EP1 bytes to the required output file argument.
 
-Global options must be placed before the subcommand. `--page-time` accepts a
+Global options must be placed before the subcommand. `--time` accepts a
 PostgreSQL `timestamptz` value for generating a historical page. When set, only
 rows with `received_at` before this time are read, and output uses this value as
 `page_time`. `--rssi-repair-window-seconds` controls the maximum age difference
