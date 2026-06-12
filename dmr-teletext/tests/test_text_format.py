@@ -148,6 +148,21 @@ def test_format_page_ep1_marks_truncated_long_callsign(set_timezone) -> None:
     assert b"OH2VERYL" not in output
 
 
+def test_format_page_ep1_formats_day_separator_with_new_design(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    page = {
+        "page_time": "2026-06-11T20:30:00+03:00",
+        "page_entry_limit": 1,
+        "retained_callsign_count": 0,
+        "rows_iterated": 0,
+        "entries": [{"type": "day", "time": "2026-06-11T00:00:00+03:00"}],
+    }
+
+    output = format_page_ep1(page, subpage="11/12")
+
+    assert b"\x15$$$ $,$$\x0310.06.2026\x15((, ((,(( " in output
+
+
 def test_format_heard_entry_handles_missing_repeater(set_timezone) -> None:
     set_timezone("UTC")
 

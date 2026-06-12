@@ -131,9 +131,9 @@ def format_ep1_entry(entry: PageEntry, rssi_yellow_threshold: int) -> bytes:
 def format_ep1_day(value: str) -> bytes:
     day = (parse_local_time(value) - timedelta(days=1)).strftime("%d.%m.%Y")
     return ep1_row(
-        b"\x05"
+        b"\x15$$$ $,$$\x03"
         + day.encode("ascii")
-        + b"    \x17$$$ $,$$ $,$ $,$$$"
+        + b"\x15((, ((,(( "
     )
 
 
