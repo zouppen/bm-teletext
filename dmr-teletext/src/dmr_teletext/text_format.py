@@ -40,9 +40,9 @@ def format_page_ep1(
     rows = [
         b" " * LINE_WIDTH,
         ep1_row(
-            b" \x1d\x01\rDemarit\x0c \x02\x1c P{ivitetty "
+            b" \x1d\x01\rDemarit\x0c \x02\x1c  P{ivitetty "
             + page_time.strftime("%H:%M").encode("ascii")
-            + b"  \x07"
+            + b" \x07"
             + encode_teletext(subpage, 5, align="<")
         ),
         ep1_row(b" \x1d            \x1c                         "),
