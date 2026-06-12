@@ -55,7 +55,7 @@ def format_page_ep1(
     rows.extend([b" " * LINE_WIDTH] * (EP1_ENTRY_ROWS - len(entries)))
     rows.extend(
         [
-            ep1_row(b"\x03Suomen aikaa. *) Bittivirheit{"),
+            ep1_row(b"\x03Suomen aikaa.\x01B\x03Bittivirhe"),
             ep1_row(b"\x03Katso lis{{: brandmeister.network"),
             b" " * LINE_WIDTH,
         ]
