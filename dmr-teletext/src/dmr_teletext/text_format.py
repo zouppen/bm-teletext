@@ -40,14 +40,14 @@ def format_page_ep1(
     rows = [
         b" " * LINE_WIDTH,
         ep1_row(
-            b" \x1d\x01\rDemarit\x0c \x02\x1c  P{ivitetty "
+            b"\x13\x1d\x11 <5<<4<4  \x02\x1c  P{ivitetty "
             + page_time.strftime("%H:%M").encode("ascii")
             + b" \x07"
             + encode_teletext(subpage, 5, align="<")
         ),
-        ep1_row(b" \x1d            \x1c                         "),
+        ep1_row(b"\x13\x1d\x11 -%%!%%    \x1c                         "),
         ep1_row(b"\x01\x1d\x07 FinDMR:n viimeksi kuullut asemat"),
-        b" " * LINE_WIDTH,
+        ep1_row(b"\x0b"),
         ep1_row(b"\x03Aika  Kutsu    Toistin          RSSI * "),
     ]
     entries = page["entries"][:EP1_ENTRY_ROWS]

@@ -148,6 +148,27 @@ def test_format_page_ep1_marks_truncated_long_callsign(set_timezone) -> None:
     assert b"OH2VERYL" not in output
 
 
+def test_format_page_ep1_formats_page_chrome_with_graphics_header(set_timezone) -> None:
+    set_timezone("Europe/Helsinki")
+    page = {
+        "page_time": "2026-06-11T20:30:00+03:00",
+        "page_entry_limit": 0,
+        "retained_callsign_count": 0,
+        "rows_iterated": 0,
+        "entries": [],
+    }
+
+    output = format_page_ep1(page, subpage="11/12")
+    rows = [
+        output[6 + index * LINE_WIDTH : 6 + (index + 1) * LINE_WIDTH]
+        for index in range(6)
+    ]
+
+    assert rows[1] == b"\x13\x1d\x11 <5<<4<4  \x02\x1c  P{ivitetty 20:30 \x0711/12"
+    assert rows[2] == b"\x13\x1d\x11 -%%!%%    \x1c                         "
+    assert rows[4] == b"\x0b                                       "
+
+
 def test_format_page_ep1_formats_day_separator_with_new_design(set_timezone) -> None:
     set_timezone("Europe/Helsinki")
     page = {
